@@ -2,6 +2,8 @@ package filey.app.core.ui.components
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -11,8 +13,42 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 
 @Composable
-fun PermissionScreen(
+fun PermissionRationaleScreen(
     onRequestPermission: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    PermissionBase(
+        icon = Icons.Default.Storage,
+        title = "Dosyalara erişim izni gerekli",
+        description = "Filey dosyalarınızı yönetebilmesi için depolama iznine ihtiyacı var.",
+        actionText = "İzin Ver",
+        onAction = onRequestPermission,
+        modifier = modifier
+    )
+}
+
+@Composable
+fun ManageFilesPermissionScreen(
+    onOpenSettings: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    PermissionBase(
+        icon = Icons.Default.Settings,
+        title = "Tüm dosyalara erişim gerekli",
+        description = "Android 11+ cihazlarda Filey'in çalışması için “Tüm dosyalara erişim” izni vermen gerekiyor.",
+        actionText = "Ayarları Aç",
+        onAction = onOpenSettings,
+        modifier = modifier
+    )
+}
+
+@Composable
+private fun PermissionBase(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    description: String,
+    actionText: String,
+    onAction: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Box(
@@ -24,27 +60,32 @@ fun PermissionScreen(
             modifier = Modifier.padding(32.dp)
         ) {
             Icon(
-                imageVector = Icons.Default.Storage,
+                imageVector = icon,
                 contentDescription = null,
                 modifier = Modifier.size(80.dp),
                 tint = MaterialTheme.colorScheme.primary
             )
             Spacer(modifier = Modifier.height(24.dp))
             Text(
-                text = "Dosyalara erişim izni gerekli",
+                text = title,
                 style = MaterialTheme.typography.headlineSmall,
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(12.dp))
             Text(
-                text = "Filey dosyalarınızı yönetebilmesi için depolama iznine ihtiyacı var.",
+                text = description,
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(modifier = Modifier.height(24.dp))
-            Button(onClick = onRequestPermission) {
-                Text("İzin Ver")
+            Button(onClick = onAction) {
+                Icon(
+                    imageVector = Icons.Default.FolderOpen,
+                    contentDescription = null
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(actionText)
             }
         }
     }
