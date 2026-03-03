@@ -1,0 +1,1221 @@
+diff -ruN /mnt/data/Filey-orig/Filey-main/app/src/main/kotlin/filey/app/FileyApp.kt /mnt/data/Filey-main/app/src/main/kotlin/filey/app/FileyApp.kt
+--- /mnt/data/Filey-orig/Filey-main/app/src/main/kotlin/filey/app/FileyApp.kt	2026-03-03 03:43:47.000000000 +0000
++++ /mnt/data/Filey-main/app/src/main/kotlin/filey/app/FileyApp.kt	2026-03-03 05:50:59.566745764 +0000
+@@ -1,13 +1,12 @@
+ package filey.app
+ 
+ import android.app.Application
+-import filey.app.core.data.RootManager
+ 
+ class FileyApp : Application() {
+     override fun onCreate() {
+         super.onCreate()
+         instance = this
+-        RootManager.init()
++        // RootManager init artık lazy (ilk kullanımda) çalışır.
+     }
+ 
+     companion object {
+diff -ruN /mnt/data/Filey-orig/Filey-main/app/src/main/main/res/xml/file_paths.xml /mnt/data/Filey-main/app/src/main/main/res/xml/file_paths.xml
+--- /mnt/data/Filey-orig/Filey-main/app/src/main/main/res/xml/file_paths.xml	2026-03-03 03:43:47.000000000 +0000
++++ /mnt/data/Filey-main/app/src/main/main/res/xml/file_paths.xml	1970-01-01 00:00:00.000000000 +0000
+@@ -1,4 +0,0 @@
+-<?xml version="1.0" encoding="utf-8"?>
+-<paths>
+-    <external-path name="external_files" path="." />
+-</paths>
+diff -ruN /mnt/data/Filey-orig/Filey-main/app/src/main/res/xml/file_paths.xml /mnt/data/Filey-main/app/src/main/res/xml/file_paths.xml
+--- /mnt/data/Filey-orig/Filey-main/app/src/main/res/xml/file_paths.xml	2026-03-03 03:43:47.000000000 +0000
++++ /mnt/data/Filey-main/app/src/main/res/xml/file_paths.xml	2026-03-03 05:46:48.093379265 +0000
+@@ -1,7 +1,10 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ <paths>
+-    <external-path name="external" path="." />
+-    <root-path name="root" path="." />
++    <!-- Sadece uygulamanın kontrol ettiği dizinler -->
++    <external-files-path name="app_files" path="." />
+     <files-path name="internal_files" path="." />
++
++    <!-- Paylaşım için geçici dizin -->
+     <cache-path name="cache" path="." />
++    <cache-path name="shared_files" path="shared/" />
+ </paths>
+diff -ruN /mnt/data/Filey-orig/Filey-main/core/src/main/kotlin/filey/app/core/data/FileRepository.kt /mnt/data/Filey-main/core/src/main/kotlin/filey/app/core/data/FileRepository.kt
+--- /mnt/data/Filey-orig/Filey-main/core/src/main/kotlin/filey/app/core/data/FileRepository.kt	2026-03-03 03:43:47.000000000 +0000
++++ /mnt/data/Filey-main/core/src/main/kotlin/filey/app/core/data/FileRepository.kt	2026-03-03 05:51:59.280329071 +0000
+@@ -1,6 +1,8 @@
+ package filey.app.core.data
+ 
+ import filey.app.core.model.FileModel
++import filey.app.core.model.FileResult
++import filey.app.core.model.PermissionType
+ import filey.app.core.util.FileUtils
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.withContext
+@@ -10,80 +12,107 @@
+ 
+ class FileRepository {
+ 
+-    suspend fun listFiles(path: String, showHidden: Boolean): List<FileModel> =
++    suspend fun listFiles(path: String, showHidden: Boolean): FileResult<List<FileModel>> =
+         withContext(Dispatchers.IO) {
+             val dir = File(path)
+-            
++
++            if (!dir.exists()) {
++                return@withContext FileResult.Error.NotFound(path)
++            }
++            if (!dir.isDirectory) {
++                return@withContext FileResult.Error.IOFailure("Not a directory: $path")
++            }
++
+             // Standart listeleme dene
+             val files = dir.listFiles()
+             if (files != null) {
+-                return@withContext files.filter { showHidden || !it.isHidden }
++                val models = files
++                    .filter { showHidden || !it.isHidden }
+                     .map { FileUtils.fileToModel(it) }
++                return@withContext FileResult.Success(models)
+             }
+ 
+             // Standart listeleme başarısızsa ve Root varsa Root ile dene
+             if (RootManager.isRootAvailable) {
+-                return@withContext RootManager.listAsRoot(path).map { name ->
+-                    val fullPath = if (path.endsWith("/")) "$path$name" else "$path/$name"
+-                    // Root üzerinden meta veri çekmek maliyetli olduğu için temel bir model oluşturuyoruz
+-                    val isDirectory = RootManager.isDirectory(fullPath)
+-                    FileModel(
+-                        name = name,
+-                        path = fullPath,
+-                        size = 0L,
+-                        lastModified = 0L,
+-                        isDirectory = isDirectory,
+-                        isHidden = name.startsWith("."),
+-                        extension = name.substringAfterLast(".", ""),
+-                        type = FileUtils.getFileType(name.substringAfterLast(".", ""), isDirectory),
+-                        sizeFormatted = if (isDirectory) "--" else "Root Dosyası",
+-                        dateFormatted = "--",
+-                        childCount = 0
+-                    )
+-                }.filter { showHidden || !it.isHidden }
++                val r = RootManager.listAsRoot(path)
++                if (r.isSuccess) {
++                    val models = r.out
++                        .map { name ->
++                            val fullPath = if (path.endsWith("/")) "$path$name" else "$path/$name"
++                            val isDirectory = RootManager.isDirectory(fullPath)
++                            FileModel(
++                                name = name,
++                                path = fullPath,
++                                size = 0L,
++                                lastModified = 0L,
++                                isDirectory = isDirectory,
++                                isHidden = name.startsWith("."),
++                                extension = name.substringAfterLast(".", ""),
++                                type = FileUtils.getFileType(name.substringAfterLast(".", ""), isDirectory),
++                                sizeFormatted = if (isDirectory) "--" else "Root Dosyası",
++                                dateFormatted = "--",
++                                childCount = 0
++                            )
++                        }
++                        .filter { showHidden || !it.isHidden }
++
++                    return@withContext FileResult.Success(models)
++                }
++
++                return@withContext FileResult.Error.ShellCommandFailed(
++                    command = "ls",
++                    exitCode = r.code,
++                    stderr = r.err.joinToString("\n").ifBlank { "unknown" }
++                )
+             }
+ 
+-            emptyList()
++            // listFiles() null -> genellikle permission / scoped storage
++            FileResult.Error.PermissionDenied(
++                message = "Cannot access directory: $path",
++                requiredPermission = PermissionType.MANAGE_ALL
++            )
+         }
+ 
+     suspend fun copyFile(
+-        sourcePath: String, 
+-        destDir: String, 
++        sourcePath: String,
++        destDir: String,
+         onProgress: (Float) -> Unit
+-    ) = withContext(Dispatchers.IO) {
++    ): FileResult<Unit> = withContext(Dispatchers.IO) {
+         val src = File(sourcePath)
++        if (!src.exists()) return@withContext FileResult.Error.NotFound(sourcePath)
++
+         val dst = File(destDir, src.name)
+-        
+-        if (src.isDirectory) {
++
++        return@withContext if (src.isDirectory) {
+             copyDirectory(src, dst, onProgress)
+         } else {
+             copySingleFile(src, dst, onProgress)
+         }
+     }
+ 
+-    private suspend fun copySingleFile(src: File, dst: File, onProgress: (Float) -> Unit) {
+-        try {
++    private fun copySingleFile(src: File, dst: File, onProgress: (Float) -> Unit): FileResult<Unit> {
++        return try {
+             val totalSize = src.length()
+             if (totalSize == 0L) {
+                 if (src.exists()) dst.createNewFile()
+                 onProgress(1f)
+-                return
++                return FileResult.Success(Unit)
+             }
+ 
+             FileInputStream(src).use { fis ->
+                 FileOutputStream(dst).use { fos ->
+                     val sourceChannel = fis.channel
+                     val destChannel = fos.channel
+-                    val bufferSize = 1024 * 1024 // 1MB Buffer
++                    val bufferSize = 1024 * 1024 // 1MB
+                     var transferred = 0L
+                     var lastReportedProgress = 0f
+ 
+                     while (transferred < totalSize) {
+                         val count = sourceChannel.transferTo(transferred, bufferSize.toLong(), destChannel)
+-                        if (count <= 0) break // Sonsuz döngü engeli
++                        if (count <= 0) break
+                         transferred += count
+                         val currentProgress = transferred.toFloat() / totalSize
+-                        
++
+                         if (currentProgress - lastReportedProgress >= 0.01f || currentProgress >= 0.99f) {
+                             onProgress(currentProgress)
+                             lastReportedProgress = currentProgress
+@@ -91,64 +120,169 @@
+                     }
+                 }
+             }
++
++            onProgress(1f)
++            FileResult.Success(Unit)
+         } catch (e: Exception) {
++            // Root fallback
+             if (RootManager.isRootAvailable) {
+-                if (!RootManager.copyAsRoot(src.absolutePath, dst.absolutePath)) throw e
+-                onProgress(1f)
+-            } else throw e
++                val ok = RootManager.copyAsRoot(src.absolutePath, dst.absolutePath)
++                if (ok) {
++                    onProgress(1f)
++                    FileResult.Success(Unit)
++                } else {
++                    FileResult.Error.RootDenied(message = e.message ?: "Root copy failed", cause = e)
++                }
++            } else {
++                FileResult.Error.IOFailure(message = e.message ?: "Copy failed", cause = e)
++            }
+         }
+     }
+ 
+-    private suspend fun copyDirectory(src: File, dst: File, onProgress: (Float) -> Unit) {
+-        dst.mkdirs()
+-        val files = src.listFiles() ?: return
+-        files.forEach { file ->
+-            val target = File(dst, file.name)
+-            if (file.isDirectory) copyDirectory(file, target, onProgress)
+-            else copySingleFile(file, target, onProgress)
++    private fun copyDirectory(src: File, dst: File, onProgress: (Float) -> Unit): FileResult<Unit> {
++        return try {
++            dst.mkdirs()
++            val files = src.listFiles() ?: return FileResult.Success(Unit)
++            files.forEach { file ->
++                val target = File(dst, file.name)
++                val result = if (file.isDirectory) copyDirectory(file, target, onProgress)
++                else copySingleFile(file, target, onProgress)
++                if (result is FileResult.Error) return result
++            }
++            FileResult.Success(Unit)
++        } catch (e: Exception) {
++            FileResult.Error.IOFailure(message = e.message ?: "Copy directory failed", cause = e)
+         }
+     }
+ 
+-    suspend fun moveFile(sourcePath: String, destDir: String, onProgress: (Float) -> Unit) = withContext(Dispatchers.IO) {
+-        val src = File(sourcePath)
+-        val dst = File(destDir, src.name)
+-        
+-        if (src.renameTo(dst)) {
+-            onProgress(1f)
+-        } else {
+-            copyFile(sourcePath, destDir, onProgress)
+-            deleteFile(sourcePath)
++    suspend fun moveFile(sourcePath: String, destDir: String, onProgress: (Float) -> Unit): FileResult<Unit> =
++        withContext(Dispatchers.IO) {
++            val src = File(sourcePath)
++            if (!src.exists()) return@withContext FileResult.Error.NotFound(sourcePath)
++
++            val dst = File(destDir, src.name)
++
++            return@withContext try {
++                if (src.renameTo(dst)) {
++                    onProgress(1f)
++                    FileResult.Success(Unit)
++                } else {
++                    // Fallback: copy + delete
++                    when (val copyResult = copyFile(sourcePath, destDir, onProgress)) {
++                        is FileResult.Success -> {
++                            when (val delResult = deleteFile(sourcePath)) {
++                                is FileResult.Success -> FileResult.Success(Unit)
++                                is FileResult.Error -> delResult
++                            }
++                        }
++                        is FileResult.Error -> copyResult
++                    }
++                }
++            } catch (e: Exception) {
++                if (RootManager.isRootAvailable) {
++                    val ok = RootManager.moveAsRoot(sourcePath, dst.absolutePath)
++                    if (ok) {
++                        onProgress(1f)
++                        FileResult.Success(Unit)
++                    } else {
++                        FileResult.Error.RootDenied(message = e.message ?: "Root move failed", cause = e)
++                    }
++                } else {
++                    FileResult.Error.IOFailure(message = e.message ?: "Move failed", cause = e)
++                }
++            }
+         }
+-    }
+ 
+-    suspend fun deleteFile(path: String) = withContext(Dispatchers.IO) {
++    suspend fun deleteFile(path: String): FileResult<Unit> = withContext(Dispatchers.IO) {
+         val file = File(path)
+-        if (!file.deleteRecursively()) {
+-            if (RootManager.isRootAvailable) {
+-                RootManager.deleteAsRoot(path)
++        if (!file.exists()) return@withContext FileResult.Success(Unit)
++
++        return@withContext try {
++            val ok = file.deleteRecursively()
++            if (ok) {
++                FileResult.Success(Unit)
++            } else {
++                if (RootManager.isRootAvailable) {
++                    if (RootManager.deleteAsRoot(path)) FileResult.Success(Unit)
++                    else FileResult.Error.RootDenied(message = "Root delete failed: $path")
++                } else {
++                    FileResult.Error.PermissionDenied(
++                        message = "Cannot delete: $path",
++                        requiredPermission = PermissionType.STORAGE
++                    )
++                }
+             }
++        } catch (e: Exception) {
++            FileResult.Error.IOFailure(message = e.message ?: "Delete failed", cause = e)
+         }
+     }
+ 
+-    suspend fun renameFile(path: String, newName: String) = withContext(Dispatchers.IO) {
++    suspend fun renameFile(path: String, newName: String): FileResult<String> = withContext(Dispatchers.IO) {
+         val file = File(path)
++        if (!file.exists()) return@withContext FileResult.Error.NotFound(path)
++
+         val target = File(file.parent, newName)
+-        if (!file.renameTo(target)) {
+-            if (RootManager.isRootAvailable) {
+-                RootManager.moveAsRoot(path, target.absolutePath)
++
++        return@withContext try {
++            if (file.renameTo(target)) {
++                FileResult.Success(target.absolutePath)
++            } else {
++                if (RootManager.isRootAvailable) {
++                    if (RootManager.moveAsRoot(path, target.absolutePath)) FileResult.Success(target.absolutePath)
++                    else FileResult.Error.RootDenied(message = "Root rename failed")
++                } else {
++                    FileResult.Error.PermissionDenied(
++                        message = "Cannot rename: $path",
++                        requiredPermission = PermissionType.STORAGE
++                    )
++                }
+             }
++        } catch (e: Exception) {
++            FileResult.Error.IOFailure(message = e.message ?: "Rename failed", cause = e)
+         }
+     }
+ 
+-    suspend fun createFolder(parentPath: String, name: String) = withContext(Dispatchers.IO) {
+-        if (!File(parentPath, name).mkdirs() && RootManager.isRootAvailable) {
+-            RootManager.execute("mkdir -p '$parentPath/$name'")
++    suspend fun createFolder(parentPath: String, name: String): FileResult<String> = withContext(Dispatchers.IO) {
++        val folder = File(parentPath, name)
++        return@withContext try {
++            if (folder.mkdirs()) {
++                FileResult.Success(folder.absolutePath)
++            } else {
++                if (RootManager.isRootAvailable) {
++                    val ok = RootManager.mkdirsAsRoot(folder.absolutePath)
++                    if (ok) FileResult.Success(folder.absolutePath)
++                    else FileResult.Error.RootDenied(message = "Root mkdir failed")
++                } else {
++                    FileResult.Error.PermissionDenied(
++                        message = "Cannot create folder: ${folder.absolutePath}",
++                        requiredPermission = PermissionType.STORAGE
++                    )
++                }
++            }
++        } catch (e: Exception) {
++            FileResult.Error.IOFailure(message = e.message ?: "Create folder failed", cause = e)
+         }
+     }
+ 
+-    suspend fun createFile(parentPath: String, name: String) = withContext(Dispatchers.IO) {
+-        if (!File(parentPath, name).createNewFile() && RootManager.isRootAvailable) {
+-            RootManager.execute("touch '$parentPath/$name'")
++    suspend fun createFile(parentPath: String, name: String): FileResult<String> = withContext(Dispatchers.IO) {
++        val f = File(parentPath, name)
++        return@withContext try {
++            if (f.createNewFile()) {
++                FileResult.Success(f.absolutePath)
++            } else {
++                if (RootManager.isRootAvailable) {
++                    val ok = RootManager.touchAsRoot(f.absolutePath)
++                    if (ok) FileResult.Success(f.absolutePath)
++                    else FileResult.Error.RootDenied(message = "Root touch failed")
++                } else {
++                    FileResult.Error.PermissionDenied(
++                        message = "Cannot create file: ${f.absolutePath}",
++                        requiredPermission = PermissionType.STORAGE
++                    )
++                }
++            }
++        } catch (e: Exception) {
++            FileResult.Error.IOFailure(message = e.message ?: "Create file failed", cause = e)
+         }
+     }
+ }
+diff -ruN /mnt/data/Filey-orig/Filey-main/core/src/main/kotlin/filey/app/core/data/RootManager.kt /mnt/data/Filey-main/core/src/main/kotlin/filey/app/core/data/RootManager.kt
+--- /mnt/data/Filey-orig/Filey-main/core/src/main/kotlin/filey/app/core/data/RootManager.kt	2026-03-03 03:43:47.000000000 +0000
++++ /mnt/data/Filey-main/core/src/main/kotlin/filey/app/core/data/RootManager.kt	2026-03-03 05:50:54.102226322 +0000
+@@ -1,45 +1,118 @@
+ package filey.app.core.data
+ 
+ import com.topjohnwu.superuser.Shell
++import java.io.File
++import java.util.concurrent.atomic.AtomicBoolean
+ 
++/**
++ * Root komutlarını çalıştıran wrapper.
++ * Kritik: Komutlar shell escaping ile inşa edilir (string interpolation ile değil).
++ */
+ object RootManager {
+ 
++    private val initialized = AtomicBoolean(false)
++
++    private fun ensureInitialized() {
++        if (initialized.compareAndSet(false, true)) {
++            Shell.enableVerboseLogging = false
++            Shell.setDefaultBuilder(
++                Shell.Builder.create()
++                    .setFlags(Shell.FLAG_MOUNT_MASTER)
++                    .setTimeout(10)
++            )
++        }
++    }
++
++    /**
++     * Backward-compat. Artık Application.onCreate'de çağırmak zorunlu değil.
++     */
++    fun init() = ensureInitialized()
++
+     val isRootAvailable: Boolean
+-        get() = Shell.isAppGrantedRoot() == true
++        get() {
++            ensureInitialized()
++            return Shell.isAppGrantedRoot() == true
++        }
++
++    // === Security helpers ===
++
++    private val allowedCommands = setOf(
++        "ls", "cp", "mv", "rm", "mkdir", "stat",
++        "cat", "touch", "chmod", "find", "du",
++        "tar", "unzip", "head", "tail", "wc",
++        "test"
++    )
++
++    private val protectedPrefixes = listOf(
++        "/system", "/vendor", "/proc", "/sys",
++        "/dev", "/init", "/sbin", "/boot"
++    )
++
++    private fun shellEscape(input: String): String {
++        require('\u0000' !in input) { "Path contains null byte" }
++        require('\n' !in input && '\r' !in input) { "Path contains newline" }
++        return "'" + input.replace("'", "'\"'\"'") + "'"
++    }
++
++    private fun isProtectedPath(path: String): Boolean {
++        val canonical = try { File(path).canonicalPath } catch (_: Exception) { path }
++        return protectedPrefixes.any { canonical.startsWith(it) }
++    }
+ 
+-    fun init() {
+-        Shell.enableVerboseLogging = false
+-        Shell.setDefaultBuilder(
+-            Shell.Builder.create()
+-                .setFlags(Shell.FLAG_MOUNT_MASTER)
+-                .setTimeout(10)
+-        )
++    private fun validateFlag(flag: String) {
++        require(flag.startsWith("-")) { "Invalid flag format: $flag" }
++        require(flag.matches(Regex("^--?[a-zA-Z0-9-]+$"))) { "Invalid characters in flag: $flag" }
+     }
+ 
+-    fun execute(command: String): Shell.Result = Shell.cmd(command).exec()
++    private fun exec(command: String, args: List<String> = emptyList(), flags: List<String> = emptyList()): Shell.Result {
++        ensureInitialized()
++        require(command in allowedCommands) { "Command not allowed: $command" }
++        flags.forEach(::validateFlag)
++
++        // Destructive operations: protect system paths
++        if (command in setOf("rm", "mv")) {
++            args.forEach { arg ->
++                require(!isProtectedPath(arg)) { "Operation on protected path blocked: $arg" }
++            }
++        }
++
++        val full = buildString {
++            append(command)
++            flags.forEach { append(' '); append(it) }
++            args.forEach { append(' '); append(shellEscape(it)) }
++        }
+ 
+-    fun listAsRoot(path: String): List<String> {
+-        val r = Shell.cmd("ls -1 '$path'").exec()
+-        return if (r.isSuccess) r.out else emptyList()
++        return Shell.cmd(full).exec()
+     }
+ 
+-    fun isDirectory(path: String): Boolean =
+-        Shell.cmd("[ -d '$path' ]").exec().isSuccess
++    /**
++     * Raw command çalıştırma (kaçınılmalı).
++     */
++    fun executeRaw(command: String): Shell.Result {
++        ensureInitialized()
++        return Shell.cmd(command).exec()
++    }
++
++    // === Safe API ===
++
++    fun listAsRoot(path: String): Shell.Result = exec("ls", args = listOf(path), flags = listOf("-1"))
+ 
+-    fun exists(path: String): Boolean =
+-        Shell.cmd("[ -e '$path' ]").exec().isSuccess
++    fun isDirectory(path: String): Boolean = exec("test", args = listOf(path), flags = listOf("-d")).isSuccess
++
++    fun exists(path: String): Boolean = exec("test", args = listOf(path), flags = listOf("-e")).isSuccess
+ 
+     fun readAsRoot(path: String): String? {
+-        val r = Shell.cmd("cat '$path'").exec()
++        val r = exec("cat", args = listOf(path))
+         return if (r.isSuccess) r.out.joinToString("\n") else null
+     }
+ 
+-    fun deleteAsRoot(path: String): Boolean =
+-        Shell.cmd("rm -rf '$path'").exec().isSuccess
++    fun deleteAsRoot(path: String): Boolean = exec("rm", args = listOf(path), flags = listOf("-rf")).isSuccess
++
++    fun copyAsRoot(src: String, dst: String): Boolean = exec("cp", args = listOf(src, dst), flags = listOf("-rf")).isSuccess
++
++    fun moveAsRoot(src: String, dst: String): Boolean = exec("mv", args = listOf(src, dst), flags = listOf("-f")).isSuccess
+ 
+-    fun copyAsRoot(src: String, dst: String): Boolean =
+-        Shell.cmd("cp -rf '$src' '$dst'").exec().isSuccess
++    fun mkdirsAsRoot(path: String): Boolean = exec("mkdir", args = listOf(path), flags = listOf("-p")).isSuccess
+ 
+-    fun moveAsRoot(src: String, dst: String): Boolean =
+-        Shell.cmd("mv -f '$src' '$dst'").exec().isSuccess
++    fun touchAsRoot(path: String): Boolean = exec("touch", args = listOf(path)).isSuccess
+ }
+diff -ruN /mnt/data/Filey-orig/Filey-main/core/src/main/kotlin/filey/app/core/model/FileResult.kt /mnt/data/Filey-main/core/src/main/kotlin/filey/app/core/model/FileResult.kt
+--- /mnt/data/Filey-orig/Filey-main/core/src/main/kotlin/filey/app/core/model/FileResult.kt	1970-01-01 00:00:00.000000000 +0000
++++ /mnt/data/Filey-main/core/src/main/kotlin/filey/app/core/model/FileResult.kt	2026-03-03 05:46:07.408979161 +0000
+@@ -0,0 +1,120 @@
++package filey.app.core.model
++
++import java.io.FileNotFoundException
++import java.io.IOException
++import java.util.concurrent.CancellationException
++
++/**
++ * Tüm dosya operasyonlarının ortak dönüş tipi.
++ * UI katmanı bu sealed hierarchy ile çalışabilir.
++ */
++sealed interface FileResult<out T> {
++    data class Success<T>(val data: T) : FileResult<T>
++
++    sealed interface Error : FileResult<Nothing> {
++        val message: String
++        val cause: Throwable?
++
++        data class PermissionDenied(
++            override val message: String = "Permission denied",
++            override val cause: Throwable? = null,
++            val requiredPermission: PermissionType = PermissionType.STORAGE
++        ) : Error
++
++        data class NotFound(
++            val path: String,
++            override val message: String = "File not found: $path",
++            override val cause: Throwable? = null
++        ) : Error
++
++        data class RootRequired(
++            override val message: String = "Root access required",
++            override val cause: Throwable? = null
++        ) : Error
++
++        data class RootDenied(
++            override val message: String = "Root access denied by user",
++            override val cause: Throwable? = null
++        ) : Error
++
++        data class IOFailure(
++            override val message: String,
++            override val cause: Throwable? = null
++        ) : Error
++
++        data class ShellCommandFailed(
++            val command: String,
++            val exitCode: Int,
++            val stderr: String,
++            override val message: String = "Shell command failed ($exitCode): $stderr",
++            override val cause: Throwable? = null
++        ) : Error
++
++        data class StorageFull(
++            val requiredBytes: Long,
++            val availableBytes: Long,
++            override val message: String = "Not enough space",
++            override val cause: Throwable? = null
++        ) : Error
++
++        data class Unknown(
++            override val message: String,
++            override val cause: Throwable? = null
++        ) : Error
++    }
++
++    val isSuccess: Boolean get() = this is Success
++    val isError: Boolean get() = this is Error
++
++    fun getOrNull(): T? = (this as? Success)?.data
++    fun errorOrNull(): Error? = this as? Error
++}
++
++enum class PermissionType { STORAGE, MANAGE_ALL, ROOT }
++
++data class FileProgress(
++    val currentFile: String,
++    val currentFileIndex: Int,
++    val totalFiles: Int,
++    val bytesProcessed: Long,
++    val totalBytes: Long
++) {
++    val percentage: Float
++        get() = if (totalBytes > 0) bytesProcessed.toFloat() / totalBytes else 0f
++}
++
++inline fun <T, R> FileResult<T>.map(transform: (T) -> R): FileResult<R> = when (this) {
++    is FileResult.Success -> FileResult.Success(transform(data))
++    is FileResult.Error -> this
++}
++
++inline fun <T> FileResult<T>.onSuccess(action: (T) -> Unit): FileResult<T> {
++    if (this is FileResult.Success) action(data)
++    return this
++}
++
++inline fun <T> FileResult<T>.onError(action: (FileResult.Error) -> Unit): FileResult<T> {
++    if (this is FileResult.Error) action(this)
++    return this
++}
++
++inline fun <T> FileResult<T>.getOrElse(fallback: (FileResult.Error) -> T): T = when (this) {
++    is FileResult.Success -> data
++    is FileResult.Error -> fallback(this)
++}
++
++suspend inline fun <T> fileResultOf(crossinline block: suspend () -> T): FileResult<T> {
++    return try {
++        FileResult.Success(block())
++    } catch (e: SecurityException) {
++        FileResult.Error.PermissionDenied(cause = e)
++    } catch (e: FileNotFoundException) {
++        FileResult.Error.NotFound(path = e.message ?: "unknown", cause = e)
++    } catch (e: IOException) {
++        FileResult.Error.IOFailure(message = e.message ?: "IO error", cause = e)
++    } catch (e: CancellationException) {
++        throw e // Coroutine cancellation'ı yutma
++    } catch (e: Exception) {
++        FileResult.Error.Unknown(message = e.message ?: "Unknown error", cause = e)
++    }
++}
+diff -ruN /mnt/data/Filey-orig/Filey-main/core/src/main/kotlin/filey/app/core/permission/PermissionOrchestrator.kt /mnt/data/Filey-main/core/src/main/kotlin/filey/app/core/permission/PermissionOrchestrator.kt
+--- /mnt/data/Filey-orig/Filey-main/core/src/main/kotlin/filey/app/core/permission/PermissionOrchestrator.kt	1970-01-01 00:00:00.000000000 +0000
++++ /mnt/data/Filey-main/core/src/main/kotlin/filey/app/core/permission/PermissionOrchestrator.kt	2026-03-03 05:46:21.331476111 +0000
+@@ -0,0 +1,64 @@
++package filey.app.core.permission
++
++import android.Manifest
++import android.content.Context
++import android.content.pm.PackageManager
++import android.os.Build
++import android.os.Environment
++import androidx.core.content.ContextCompat
++
++/**
++ * Storage izin durumunu merkezi yönetir.
++ * Not: Android 11+ için File Manager semantiği gerektiğinden MANAGE_EXTERNAL_STORAGE kullanılır.
++ */
++class PermissionOrchestrator(
++    private val appContext: Context
++) {
++
++    fun getStoragePermissionState(): StoragePermissionState {
++        return when {
++            Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> {
++                if (Environment.isExternalStorageManager()) {
++                    StoragePermissionState.Granted
++                } else {
++                    StoragePermissionState.NeedsManageAllFiles
++                }
++            }
++
++            Build.VERSION.SDK_INT >= Build.VERSION_CODES.M -> {
++                val readGranted = ContextCompat.checkSelfPermission(
++                    appContext,
++                    Manifest.permission.READ_EXTERNAL_STORAGE
++                ) == PackageManager.PERMISSION_GRANTED
++
++                val writeGranted = ContextCompat.checkSelfPermission(
++                    appContext,
++                    Manifest.permission.WRITE_EXTERNAL_STORAGE
++                ) == PackageManager.PERMISSION_GRANTED
++
++                if (readGranted && writeGranted) {
++                    StoragePermissionState.Granted
++                } else {
++                    StoragePermissionState.NeedsRuntimePermission(
++                        permissions = buildList {
++                            if (!readGranted) add(Manifest.permission.READ_EXTERNAL_STORAGE)
++                            if (!writeGranted) add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
++                        }
++                    )
++                }
++            }
++
++            else -> StoragePermissionState.Granted
++        }
++    }
++}
++
++sealed interface StoragePermissionState {
++    data object Granted : StoragePermissionState
++
++    data class NeedsRuntimePermission(
++        val permissions: List<String>
++    ) : StoragePermissionState
++
++    data object NeedsManageAllFiles : StoragePermissionState
++}
+diff -ruN /mnt/data/Filey-orig/Filey-main/core/src/main/kotlin/filey/app/core/ui/components/PermissionScreen.kt /mnt/data/Filey-main/core/src/main/kotlin/filey/app/core/ui/components/PermissionScreen.kt
+--- /mnt/data/Filey-orig/Filey-main/core/src/main/kotlin/filey/app/core/ui/components/PermissionScreen.kt	2026-03-03 03:43:47.000000000 +0000
++++ /mnt/data/Filey-main/core/src/main/kotlin/filey/app/core/ui/components/PermissionScreen.kt	2026-03-03 05:46:30.885949694 +0000
+@@ -12,6 +12,9 @@
+ 
+ @Composable
+ fun PermissionScreen(
++    title: String,
++    description: String,
++    buttonText: String,
+     onRequestPermission: () -> Unit,
+     modifier: Modifier = Modifier
+ ) {
+@@ -31,20 +34,20 @@
+             )
+             Spacer(modifier = Modifier.height(24.dp))
+             Text(
+-                text = "Dosyalara erişim izni gerekli",
++                text = title,
+                 style = MaterialTheme.typography.headlineSmall,
+                 textAlign = TextAlign.Center
+             )
+             Spacer(modifier = Modifier.height(12.dp))
+             Text(
+-                text = "Filey dosyalarınızı yönetebilmesi için depolama iznine ihtiyacı var.",
++                text = description,
+                 style = MaterialTheme.typography.bodyMedium,
+                 textAlign = TextAlign.Center,
+                 color = MaterialTheme.colorScheme.onSurfaceVariant
+             )
+             Spacer(modifier = Modifier.height(24.dp))
+             Button(onClick = onRequestPermission) {
+-                Text("İzin Ver")
++                Text(buttonText)
+             }
+         }
+     }
+diff -ruN /mnt/data/Filey-orig/Filey-main/core/src/main/kotlin/filey/app/core/util/FileShareHelper.kt /mnt/data/Filey-main/core/src/main/kotlin/filey/app/core/util/FileShareHelper.kt
+--- /mnt/data/Filey-orig/Filey-main/core/src/main/kotlin/filey/app/core/util/FileShareHelper.kt	1970-01-01 00:00:00.000000000 +0000
++++ /mnt/data/Filey-main/core/src/main/kotlin/filey/app/core/util/FileShareHelper.kt	2026-03-03 05:46:40.696556030 +0000
+@@ -0,0 +1,33 @@
++package filey.app.core.util
++
++import android.content.Context
++import android.net.Uri
++import androidx.core.content.FileProvider
++import java.io.File
++
++/**
++ * FileProvider kapsamını daraltabilmek için paylaşılacak dosyayı cache'e kopyalar.
++ * Böylece FileProvider'da root-path / external-path "." gibi tehlikeli tanımlar gerekmez.
++ */
++object FileShareHelper {
++
++    /**
++     * Verilen dosyayı cache/shared altına kopyalar ve FileProvider URI döner.
++     * Not: Büyük dosyalarda kopyalama maliyetlidir; mümkünse IO thread'inde çağır.
++     */
++    fun getShareableUri(context: Context, filePath: String): Uri {
++        val source = File(filePath)
++        val sharedDir = File(context.cacheDir, "shared").apply { mkdirs() }
++        val dest = File(sharedDir, source.name)
++        source.copyTo(dest, overwrite = true)
++        return FileProvider.getUriForFile(
++            context,
++            "${context.packageName}.fileprovider",
++            dest
++        )
++    }
++
++    fun clearShareCache(context: Context) {
++        File(context.cacheDir, "shared").deleteRecursively()
++    }
++}
+diff -ruN /mnt/data/Filey-orig/Filey-main/core/src/main/kotlin/filey/app/core/util/PermissionHelper.kt /mnt/data/Filey-main/core/src/main/kotlin/filey/app/core/util/PermissionHelper.kt
+--- /mnt/data/Filey-orig/Filey-main/core/src/main/kotlin/filey/app/core/util/PermissionHelper.kt	2026-03-03 03:43:47.000000000 +0000
++++ /mnt/data/Filey-main/core/src/main/kotlin/filey/app/core/util/PermissionHelper.kt	1970-01-01 00:00:00.000000000 +0000
+@@ -1,20 +0,0 @@
+-package filey.app.core.util
+-
+-import android.Manifest
+-import android.content.Context
+-import android.content.pm.PackageManager
+-import android.os.Build
+-import android.os.Environment
+-import androidx.core.content.ContextCompat
+-
+-object PermissionHelper {
+-    fun hasStoragePermission(context: Context): Boolean {
+-        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+-            Environment.isExternalStorageManager()
+-        } else {
+-            val read = ContextCompat.checkSelfPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE)
+-            val write = ContextCompat.checkSelfPermission(context, Manifest.permission.WRITE_EXTERNAL_STORAGE)
+-            read == PackageManager.PERMISSION_GRANTED && write == PackageManager.PERMISSION_GRANTED
+-        }
+-    }
+-}
+diff -ruN /mnt/data/Filey-orig/Filey-main/feature/browser/src/main/kotlin/filey/app/feature/browser/BrowserScreen.kt /mnt/data/Filey-main/feature/browser/src/main/kotlin/filey/app/feature/browser/BrowserScreen.kt
+--- /mnt/data/Filey-orig/Filey-main/feature/browser/src/main/kotlin/filey/app/feature/browser/BrowserScreen.kt	2026-03-03 03:43:47.000000000 +0000
++++ /mnt/data/Filey-main/feature/browser/src/main/kotlin/filey/app/feature/browser/BrowserScreen.kt	2026-03-03 05:50:21.054185816 +0000
+@@ -19,11 +19,16 @@
+ import androidx.compose.ui.unit.dp
+ import androidx.lifecycle.compose.collectAsStateWithLifecycle
+ import androidx.lifecycle.viewmodel.compose.viewModel
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.launch
++import kotlinx.coroutines.withContext
+ import filey.app.core.model.FileType
+ import filey.app.core.ui.components.EmptyState
+ import filey.app.core.ui.components.LoadingIndicator
+ import filey.app.core.ui.components.PermissionScreen
+-import filey.app.core.util.PermissionHelper
++import filey.app.core.permission.PermissionOrchestrator
++import filey.app.core.permission.StoragePermissionState
++import filey.app.core.util.FileShareHelper
+ import filey.app.feature.browser.components.*
+ 
+ @OptIn(ExperimentalMaterial3Api::class)
+@@ -41,7 +46,10 @@
+ ) {
+     val context = LocalContext.current
+     val state by viewModel.uiState.collectAsStateWithLifecycle()
+-    var hasPermission by remember { mutableStateOf(PermissionHelper.hasStoragePermission(context)) }
++    val scope = rememberCoroutineScope()
++    val orchestrator = remember { PermissionOrchestrator(context.applicationContext) }
++    var permissionState by remember { mutableStateOf(orchestrator.getStoragePermissionState()) }
++    val hasPermission = permissionState is StoragePermissionState.Granted
+     var showSortSheet by remember { mutableStateOf(false) }
+     var showOptionsSheet by remember { mutableStateOf(false) }
+     var selectedFileIndex by remember { mutableIntStateOf(-1) }
+@@ -50,10 +58,16 @@
+     var showDeleteDialog by remember { mutableStateOf(false) }
+     var showAboutDialog by remember { mutableStateOf(false) }
+ 
+-    val permissionLauncher = rememberLauncherForActivityResult(
++    val manageFilesLauncher = rememberLauncherForActivityResult(
+         ActivityResultContracts.StartActivityForResult()
+     ) {
+-        hasPermission = PermissionHelper.hasStoragePermission(context)
++        permissionState = orchestrator.getStoragePermissionState()
++    }
++
++    val runtimePermissionLauncher = rememberLauncherForActivityResult(
++        ActivityResultContracts.RequestMultiplePermissions()
++    ) {
++        permissionState = orchestrator.getStoragePermissionState()
+     }
+ 
+     LaunchedEffect(hasPermission) {
+@@ -61,14 +75,32 @@
+     }
+ 
+     if (!hasPermission) {
+-        PermissionScreen(onRequestPermission = {
+-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+-                val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
+-                    data = Uri.parse("package:${context.packageName}")
+-                }
+-                permissionLauncher.launch(intent)
++        when (val ps = permissionState) {
++            is StoragePermissionState.NeedsManageAllFiles -> {
++                PermissionScreen(
++                    title = "Dosyalara erişim izni gerekli",
++                    description = "Android 11 ve üstünde Filey'in tüm depolamayı yönetebilmesi için \"Tüm dosyalara erişim\" izni gerekiyor.",
++                    buttonText = "Ayarları Aç",
++                    onRequestPermission = {
++                        val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
++                            data = Uri.parse("package:${context.packageName}")
++                        }
++                        manageFilesLauncher.launch(intent)
++                    }
++                )
+             }
+-        })
++            is StoragePermissionState.NeedsRuntimePermission -> {
++                PermissionScreen(
++                    title = "Dosyalara erişim izni gerekli",
++                    description = "Filey'in dosyaları listeleyebilmesi için depolama izinleri gerekiyor.",
++                    buttonText = "İzin Ver",
++                    onRequestPermission = {
++                        runtimePermissionLauncher.launch(ps.permissions.toTypedArray())
++                    }
++                )
++            }
++            StoragePermissionState.Granted -> Unit
++        }
+         return
+     }
+ 
+@@ -133,6 +165,7 @@
+ 
+                 when {
+                     state.isLoading -> LoadingIndicator()
++                    state.error != null -> EmptyState(message = state.error ?: "")
+                     state.files.isEmpty() -> EmptyState(message = "Bu klasör boş")
+                     state.isGridView -> FileGrid(
+                         files = state.files,
+@@ -145,19 +178,23 @@
+                                 file.type == FileType.ARCHIVE -> onOpenArchive(file.path)
+                                 file.type == FileType.TEXT -> onOpenText(file.path)
+                                 else -> {
+-                                    val intent = Intent(Intent.ACTION_VIEW).apply {
+-                                        val uri = androidx.core.content.FileProvider.getUriForFile(
+-                                            context,
+-                                            "${context.packageName}.fileprovider",
+-                                            java.io.File(file.path)
+-                                        )
+-                                        setDataAndType(uri, filey.app.core.util.FileUtils.getMimeType(file.path))
+-                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+-                                    }
+-                                    try {
+-                                        context.startActivity(intent)
+-                                    } catch (_: Exception) {
+-                                        onOpenText(file.path)
++                                    scope.launch(Dispatchers.IO) {
++                                        try {
++                                            val uri = FileShareHelper.getShareableUri(context, file.path)
++                                            val intent = Intent(Intent.ACTION_VIEW).apply {
++                                                setDataAndType(uri, filey.app.core.util.FileUtils.getMimeType(file.path))
++                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
++                                            }
++                                            withContext(Dispatchers.Main) {
++                                                try {
++                                                    context.startActivity(intent)
++                                                } catch (_: Exception) {
++                                                    onOpenText(file.path)
++                                                }
++                                            }
++                                        } catch (_: Exception) {
++                                            withContext(Dispatchers.Main) { onOpenText(file.path) }
++                                        }
+                                     }
+                                 }
+ 
+@@ -179,19 +216,23 @@
+                                 file.type == FileType.ARCHIVE -> onOpenArchive(file.path)
+                                 file.type == FileType.TEXT -> onOpenText(file.path)
+                                 else -> {
+-                                    val intent = Intent(Intent.ACTION_VIEW).apply {
+-                                        val uri = androidx.core.content.FileProvider.getUriForFile(
+-                                            context,
+-                                            "${context.packageName}.fileprovider",
+-                                            java.io.File(file.path)
+-                                        )
+-                                        setDataAndType(uri, filey.app.core.util.FileUtils.getMimeType(file.path))
+-                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+-                                    }
+-                                    try {
+-                                        context.startActivity(intent)
+-                                    } catch (_: Exception) {
+-                                        onOpenText(file.path)
++                                    scope.launch(Dispatchers.IO) {
++                                        try {
++                                            val uri = FileShareHelper.getShareableUri(context, file.path)
++                                            val intent = Intent(Intent.ACTION_VIEW).apply {
++                                                setDataAndType(uri, filey.app.core.util.FileUtils.getMimeType(file.path))
++                                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
++                                            }
++                                            withContext(Dispatchers.Main) {
++                                                try {
++                                                    context.startActivity(intent)
++                                                } catch (_: Exception) {
++                                                    onOpenText(file.path)
++                                                }
++                                            }
++                                        } catch (_: Exception) {
++                                            withContext(Dispatchers.Main) { onOpenText(file.path) }
++                                        }
+                                     }
+                                 }
+ 
+diff -ruN /mnt/data/Filey-orig/Filey-main/feature/browser/src/main/kotlin/filey/app/feature/browser/BrowserViewModel.kt /mnt/data/Filey-main/feature/browser/src/main/kotlin/filey/app/feature/browser/BrowserViewModel.kt
+--- /mnt/data/Filey-orig/Filey-main/feature/browser/src/main/kotlin/filey/app/feature/browser/BrowserViewModel.kt	2026-03-03 03:43:47.000000000 +0000
++++ /mnt/data/Filey-main/feature/browser/src/main/kotlin/filey/app/feature/browser/BrowserViewModel.kt	2026-03-03 05:52:34.203055947 +0000
+@@ -4,6 +4,7 @@
+ import androidx.lifecycle.viewModelScope
+ import filey.app.core.data.FileRepository
+ import filey.app.core.model.FileModel
++import filey.app.core.model.FileResult
+ import filey.app.core.model.SortOption
+ import kotlinx.coroutines.flow.MutableStateFlow
+ import kotlinx.coroutines.flow.StateFlow
+@@ -41,15 +42,20 @@
+     fun loadDirectory(path: String) {
+         viewModelScope.launch {
+             _uiState.value = _uiState.value.copy(isLoading = true, currentPath = path, error = null)
+-            try {
+-                val files = repository.listFiles(path, _uiState.value.showHidden)
+-                fullFileList = sortFiles(files, _uiState.value.sortOption)
+-                updateFilteredList()
+-            } catch (e: Exception) {
+-                _uiState.value = _uiState.value.copy(
+-                    error = e.message ?: "Dosyalar yüklenemedi",
+-                    isLoading = false
+-                )
++
++            when (val result = repository.listFiles(path, _uiState.value.showHidden)) {
++                is FileResult.Success -> {
++                    fullFileList = sortFiles(result.data, _uiState.value.sortOption)
++                    updateFilteredList()
++                }
++                is FileResult.Error -> {
++                    fullFileList = emptyList()
++                    _uiState.value = _uiState.value.copy(
++                        files = emptyList(),
++                        isLoading = false,
++                        error = result.message
++                    )
++                }
+             }
+         }
+     }
+@@ -92,44 +98,36 @@
+ 
+     fun createFolder(name: String) {
+         viewModelScope.launch {
+-            try {
+-                repository.createFolder(_uiState.value.currentPath, name)
+-                loadDirectory(_uiState.value.currentPath)
+-            } catch (e: Exception) {
+-                _uiState.value = _uiState.value.copy(error = e.message)
++            when (val r = repository.createFolder(_uiState.value.currentPath, name)) {
++                is FileResult.Success -> loadDirectory(_uiState.value.currentPath)
++                is FileResult.Error -> _uiState.value = _uiState.value.copy(error = r.message)
+             }
+         }
+     }
+ 
+     fun createFile(name: String) {
+         viewModelScope.launch {
+-            try {
+-                repository.createFile(_uiState.value.currentPath, name)
+-                loadDirectory(_uiState.value.currentPath)
+-            } catch (e: Exception) {
+-                _uiState.value = _uiState.value.copy(error = e.message)
++            when (val r = repository.createFile(_uiState.value.currentPath, name)) {
++                is FileResult.Success -> loadDirectory(_uiState.value.currentPath)
++                is FileResult.Error -> _uiState.value = _uiState.value.copy(error = r.message)
+             }
+         }
+     }
+ 
+     fun deleteFile(file: FileModel) {
+         viewModelScope.launch {
+-            try {
+-                repository.deleteFile(file.path)
+-                loadDirectory(_uiState.value.currentPath)
+-            } catch (e: Exception) {
+-                _uiState.value = _uiState.value.copy(error = e.message)
++            when (val r = repository.deleteFile(file.path)) {
++                is FileResult.Success -> loadDirectory(_uiState.value.currentPath)
++                is FileResult.Error -> _uiState.value = _uiState.value.copy(error = r.message)
+             }
+         }
+     }
+ 
+     fun renameFile(file: FileModel, newName: String) {
+         viewModelScope.launch {
+-            try {
+-                repository.renameFile(file.path, newName)
+-                loadDirectory(_uiState.value.currentPath)
+-            } catch (e: Exception) {
+-                _uiState.value = _uiState.value.copy(error = e.message)
++            when (val r = repository.renameFile(file.path, newName)) {
++                is FileResult.Success -> loadDirectory(_uiState.value.currentPath)
++                is FileResult.Error -> _uiState.value = _uiState.value.copy(error = r.message)
+             }
+         }
+     }
+@@ -145,21 +143,26 @@
+     fun paste() {
+         val clip = _uiState.value.clipboard ?: return
+         viewModelScope.launch {
+-            _uiState.value = _uiState.value.copy(operationProgress = 0f)
+-            try {
+-                if (clip.isCut) {
+-                    repository.moveFile(clip.file.path, _uiState.value.currentPath) { progress ->
+-                        _uiState.value = _uiState.value.copy(operationProgress = progress)
+-                    }
+-                } else {
+-                    repository.copyFile(clip.file.path, _uiState.value.currentPath) { progress ->
+-                        _uiState.value = _uiState.value.copy(operationProgress = progress)
+-                    }
+-                }
+-                _uiState.value = _uiState.value.copy(clipboard = null, operationProgress = null)
+-                loadDirectory(_uiState.value.currentPath)
+-            } catch (e: Exception) {
+-                _uiState.value = _uiState.value.copy(error = e.message, operationProgress = null)
++            _uiState.value = _uiState.value.copy(operationProgress = 0f, error = null)
++
++            val result = if (clip.isCut) {
++                repository.moveFile(clip.file.path, _uiState.value.currentPath) { progress ->
++                    _uiState.value = _uiState.value.copy(operationProgress = progress)
++                }
++            } else {
++                repository.copyFile(clip.file.path, _uiState.value.currentPath) { progress ->
++                    _uiState.value = _uiState.value.copy(operationProgress = progress)
++                }
++            }
++
++            when (result) {
++                is FileResult.Success -> {
++                    _uiState.value = _uiState.value.copy(clipboard = null, operationProgress = null)
++                    loadDirectory(_uiState.value.currentPath)
++                }
++                is FileResult.Error -> {
++                    _uiState.value = _uiState.value.copy(error = result.message, operationProgress = null)
++                }
+             }
+         }
+     }
+diff -ruN /mnt/data/Filey-orig/Filey-main/feature/browser/src/main/kotlin/filey/app/feature/browser/components/FileOptionsSheet.kt /mnt/data/Filey-main/feature/browser/src/main/kotlin/filey/app/feature/browser/components/FileOptionsSheet.kt
+--- /mnt/data/Filey-orig/Filey-main/feature/browser/src/main/kotlin/filey/app/feature/browser/components/FileOptionsSheet.kt	2026-03-03 03:43:47.000000000 +0000
++++ /mnt/data/Filey-main/feature/browser/src/main/kotlin/filey/app/feature/browser/components/FileOptionsSheet.kt	2026-03-03 05:47:13.004221167 +0000
+@@ -2,20 +2,24 @@
+ 
+ import android.content.Context
+ import android.content.Intent
++import android.os.Handler
++import android.os.Looper
+ import androidx.compose.foundation.clickable
+ import androidx.compose.foundation.layout.*
+ import androidx.compose.material.icons.Icons
+ import androidx.compose.material.icons.filled.*
+ import androidx.compose.material3.*
+ import androidx.compose.runtime.Composable
++import androidx.compose.runtime.rememberCoroutineScope
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.graphics.vector.ImageVector
+ import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.unit.dp
+-import androidx.core.content.FileProvider
+ import filey.app.core.model.FileModel
++import filey.app.core.util.FileShareHelper
+ import filey.app.core.util.FileUtils
+-import java.io.File
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.launch
+ 
+ @OptIn(ExperimentalMaterial3Api::class)
+ @Composable
+@@ -28,6 +32,7 @@
+     onDismiss: () -> Unit
+ ) {
+     val context = LocalContext.current
++    val scope = rememberCoroutineScope()
+ 
+     ModalBottomSheet(onDismissRequest = onDismiss) {
+         Column(modifier = Modifier.padding(bottom = 32.dp)) {
+@@ -49,7 +54,9 @@
+             OptionItem(Icons.Default.ContentCut, "Kes") { onCut() }
+             OptionItem(Icons.Default.DriveFileRenameOutline, "Yeniden Adlandır") { onRename() }
+             OptionItem(Icons.Default.Share, "Paylaş") {
+-                shareFile(context, file.path)
++                scope.launch(Dispatchers.IO) {
++                    shareFile(context, file.path)
++                }
+                 onDismiss()
+             }
+             OptionItem(Icons.Default.Delete, "Sil") { onDelete() }
+@@ -75,13 +82,19 @@
+ 
+ private fun shareFile(context: Context, path: String) {
+     try {
+-        val file = File(path)
+-        val uri = FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
++        val uri = FileShareHelper.getShareableUri(context, path)
+         val intent = Intent(Intent.ACTION_SEND).apply {
+             type = FileUtils.getMimeType(path)
+             putExtra(Intent.EXTRA_STREAM, uri)
+             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+         }
+-        context.startActivity(Intent.createChooser(intent, "Paylaş"))
+-    } catch (_: Exception) { }
++        // Activity başlatmayı main thread'e al
++        Handler(Looper.getMainLooper()).post {
++            try {
++                context.startActivity(Intent.createChooser(intent, "Paylaş"))
++            } catch (_: Exception) {
++            }
++        }
++    } catch (_: Exception) {
++    }
+ }
