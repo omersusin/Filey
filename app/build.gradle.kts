@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.omersusin.filey"
+    namespace = "filey.app"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.omersusin.filey"
+        applicationId = "filey.app"
         minSdk = 26
         targetSdk = 34
         versionCode = 1

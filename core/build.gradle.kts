@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.omersusin.filey.core"
+    namespace = "filey.app.core"
     compileSdk = 34
 
     defaultConfig {

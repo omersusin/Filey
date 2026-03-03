@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.omersusin.filey.feature.browser"
+    namespace = "filey.app.feature.browser"
     compileSdk = 34
     defaultConfig { minSdk = 26 }
     compileOptions {

@@ -1,4 +1,4 @@
 -keepattributes *Annotation*
--keep class com.omersusin.filey.** { *; }
+-keep class filey.app.** { *; }
 -dontwarn org.apache.commons.compress.**
 -dontwarn com.github.junrar.**

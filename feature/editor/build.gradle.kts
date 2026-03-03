@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.omersusin.filey.feature.editor"
+    namespace = "filey.app.feature.editor"
     compileSdk = 34
     defaultConfig { minSdk = 26 }
     compileOptions {

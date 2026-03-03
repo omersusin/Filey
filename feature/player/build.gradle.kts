@@ -4,7 +4,7 @@ plugins {
 }
 
 android {
-    namespace = "com.omersusin.filey.feature.player"
+    namespace = "filey.app.feature.player"
     compileSdk = 34
     defaultConfig { minSdk = 26 }
     compileOptions {
