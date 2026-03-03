@@ -1,48 +1,64 @@
-name: Build Filey APK
+name: Filey CI
 
 on:
   workflow_dispatch:
   push:
     branches:
       - main
+      - develop
       - "feat/**"
   pull_request:
     branches:
       - main
+
 jobs:
-  build:
+  lint-and-test:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
+      - uses: actions/checkout@v4
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
-
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
         with:
-          gradle-version: 8.7
-          cache-disabled: false
-          cache-read-only: false
-
-      - name: Build APKs
-        run: gradle assembleDebug assembleRelease --no-daemon --stacktrace --build-cache
-
-      - name: Upload Debug APK
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+      - name: Lint
+        run: ./gradlew lint
+      - name: Unit Tests
+        run: ./gradlew testDebugUnitTest
+      - name: Upload test results
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: filey-debug-apk
-          path: app/build/outputs/apk/debug/*.apk
-          retention-days: 7
+          name: test-results
+          path: '**/build/reports/tests/'
 
-      - name: Upload Release APK
+  build:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+      - name: Build Debug APK
+        run: ./gradlew assembleDebug
+      - name: Run Tests
+        run: ./gradlew test
+      - name: Build Release APK
+        run: ./gradlew assembleRelease
+      - name: Upload APKs
         uses: actions/upload-artifact@v4
         with:
-          name: filey-release-apk
-          path: app/build/outputs/apk/release/*.apk
-          retention-days: 7
+          name: apks
+          path: |
+            app/build/outputs/apk/debug/*.apk
+            app/build/outputs/apk/release/*.apk

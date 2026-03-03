@@ -6,6 +6,8 @@ class FileyApp : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
+        // RootManager.init() KALDIRILDI
+        // Root kontrolü lazy olarak ilk ihtiyaç anında yapılır
     }
 
     companion object {

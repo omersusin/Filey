@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="error_io">Dosya işlemi başarısız: %s</string>
+    <string name="error_permission">Erişim reddedildi: %s</string>
+    <string name="error_not_found">Dosya bulunamadı: %s</string>
+    <string name="error_root_required">Bu işlem root yetkisi gerektiriyor</string>
+    <string name="error_shell_failed">Komut başarısız (kod: %s)</string>
+    <string name="error_unknown">Beklenmeyen hata: %s</string>
+</resources>
