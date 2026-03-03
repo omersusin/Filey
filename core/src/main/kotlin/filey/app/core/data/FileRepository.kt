@@ -1,5 +1,7 @@
 package filey.app.core.data
 
+
+import filey.app.core.model.FileModel
 import filey.app.core.model.FileResult
 import filey.app.core.model.FileResult.Error
 import filey.app.core.model.PermissionType
