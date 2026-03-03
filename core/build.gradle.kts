@@ -50,7 +50,7 @@ dependencies {
     implementation(libs.libsu.service)
 
     debugImplementation(libs.compose.ui.tooling)
-}
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+}
