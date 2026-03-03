@@ -150,6 +150,7 @@ private fun getFileIconAndColor(file: FileModel): Pair<ImageVector, androidx.com
         FileType.TEXT -> Icons.Outlined.Description to cs.onSurfaceVariant
         FileType.ARCHIVE -> Icons.Outlined.FolderZip to cs.tertiary
         FileType.APK -> Icons.Outlined.Android to cs.primary
+        FileType.PDF -> Icons.Outlined.PictureAsPdf to cs.error
         FileType.OTHER -> Icons.Outlined.InsertDriveFile to cs.onSurfaceVariant
     }
 }

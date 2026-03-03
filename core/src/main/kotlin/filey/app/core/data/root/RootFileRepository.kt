@@ -127,7 +127,7 @@ class RootFileRepository : FileRepository {
             runCatching {
                 // df outputs: Filesystem 1K-blocks Used Available Use% Mounted on
                 val lines = execOut("df ${path.shellEscape()}")
-                val parts = lines.getOrNull(1)?.trim()?.split("\s+".toRegex())
+                val parts = lines.getOrNull(1)?.trim()?.split("\\s+".toRegex())
                     ?: error("df failed for $path")
                 val total = (parts.getOrNull(1)?.toLongOrNull() ?: 0L) * 1024
                 val used = (parts.getOrNull(2)?.toLongOrNull() ?: 0L) * 1024
@@ -140,18 +140,17 @@ class RootFileRepository : FileRepository {
         withContext(Dispatchers.IO) {
             runCatching {
                 val lines = execOut("cat ${path.shellEscape()}")
-                lines.joinToString("
-")
+                lines.joinToString("\n")
             }
         }
 
     override suspend fun writeText(path: String, content: String): Result<Unit> =
         withContext(Dispatchers.IO) {
             runCatching {
-                // Write via heredoc to avoid escaping issues
-                val tmpFile = "/data/local/tmp/filey_write_${System.currentTimeMillis()}"
-                java.io.File(tmpFile).writeText(content)
-                val result = exec("cp $tmpFile ${path.shellEscape()}", "rm $tmpFile")
+                // Write via a temporary file since libsu doesn't have a direct "write string to root file" easily without pipes
+                // We'll use a shell redirection
+                val escapedContent = content.replace("'", "'\\''")
+                val result = exec("echo '$escapedContent' > ${path.shellEscape()}")
                 if (!result.isSuccess) error("write failed: ${result.err.joinToString()}")
             }
         }
@@ -173,15 +172,10 @@ class RootFileRepository : FileRepository {
 
     // ── Parsing helpers ─────────────────────────────────────
 
-    /**
-     * Parse a line from `ls -la` output.
-     * Example: drwxrwxr-x 3 root root 4096 2024-01-15 10:30 dirname
-     */
     private fun parseLsLine(line: String, parentPath: String): FileModel? {
-        // Skip total line, empty lines, . and ..
         if (line.isBlank() || line.startsWith("total")) return null
 
-        val parts = line.trim().split("\s+".toRegex(), limit = 9)
+        val parts = line.trim().split("\\s+".toRegex(), limit = 9)
         if (parts.size < 9) return null
 
         val perms = parts[0]
@@ -194,15 +188,13 @@ class RootFileRepository : FileRepository {
 
         val isDir = perms.startsWith('d')
         val isLink = perms.startsWith('l')
-        val fullPath = "$parentPath/$name"
         val isHidden = name.startsWith('.')
 
-        // If it's a symlink like "name -> target", extract just the name
         val actualName = if (isLink && name.contains(" -> ")) {
             name.substringBefore(" -> ")
         } else name
 
-        val actualPath = "$parentPath/$actualName"
+        val actualPath = if (parentPath == "/") "/$actualName" else "$parentPath/$actualName"
         val ext = if (isDir) "" else actualName.substringAfterLast('.', "").lowercase()
 
         return FileModel(

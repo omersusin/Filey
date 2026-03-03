@@ -61,7 +61,7 @@ class ShizukuFileRepository : FileRepository {
         withContext(Dispatchers.IO) {
             runCatching {
                 val parent = path.substringBeforeLast('/')
-                val newPath = "$parent/$newName"
+                val newPath = if (parent == "") "/$newName" else "$parent/$newName"
                 val (_, stderr, code) = exec("mv ${path.shellEscape()} ${newPath.shellEscape()}")
                 if (code != 0) error("mv failed: ${stderr.joinToString()}")
                 newPath
@@ -97,8 +97,8 @@ class ShizukuFileRepository : FileRepository {
             runCatching {
                 val (stdout, _, _) = exec("ls -lad ${path.shellEscape()}")
                 val line = stdout.firstOrNull() ?: error("stat failed")
-                parseLsLine(line, path.substringBeforeLast('/'))
-                    ?: error("parse failed: $line")
+                val parentDir = path.substringBeforeLast('/')
+                parseLsLine(line, parentDir) ?: error("parse failed: $line")
             }
         }
 
@@ -111,7 +111,7 @@ class ShizukuFileRepository : FileRepository {
         withContext(Dispatchers.IO) {
             runCatching {
                 val (stdout, _, _) = exec("df ${path.shellEscape()}")
-                val parts = stdout.getOrNull(1)?.trim()?.split("\s+".toRegex())
+                val parts = stdout.getOrNull(1)?.trim()?.split("\\s+".toRegex())
                     ?: error("df failed")
                 val total = (parts.getOrNull(1)?.toLongOrNull() ?: 0L) * 1024
                 val used = (parts.getOrNull(2)?.toLongOrNull() ?: 0L) * 1024
@@ -125,17 +125,15 @@ class ShizukuFileRepository : FileRepository {
             runCatching {
                 val (stdout, stderr, code) = exec("cat ${path.shellEscape()}")
                 if (code != 0) error("cat failed: ${stderr.joinToString()}")
-                stdout.joinToString("
-")
+                stdout.joinToString("\n")
             }
         }
 
     override suspend fun writeText(path: String, content: String): Result<Unit> =
         withContext(Dispatchers.IO) {
             runCatching {
-                val tmpFile = "/data/local/tmp/filey_shizuku_${System.currentTimeMillis()}"
-                java.io.File(tmpFile).writeText(content)
-                val (_, stderr, code) = exec("cp $tmpFile ${path.shellEscape()} && rm $tmpFile")
+                val escapedContent = content.replace("'", "'\\''")
+                val (_, stderr, code) = exec("echo '$escapedContent' > ${path.shellEscape()}")
                 if (code != 0) error("write failed: ${stderr.joinToString()}")
             }
         }
@@ -158,7 +156,7 @@ class ShizukuFileRepository : FileRepository {
 
     private fun parseLsLine(line: String, parentPath: String): FileModel? {
         if (line.isBlank() || line.startsWith("total")) return null
-        val parts = line.trim().split("\s+".toRegex(), limit = 9)
+        val parts = line.trim().split("\\s+".toRegex(), limit = 9)
         if (parts.size < 9) return null
 
         val perms = parts[0]
@@ -171,7 +169,7 @@ class ShizukuFileRepository : FileRepository {
         val isDir = perms.startsWith('d')
         val isLink = perms.startsWith('l')
         val actualName = if (isLink && name.contains(" -> ")) name.substringBefore(" -> ") else name
-        val actualPath = "$parentPath/$actualName"
+        val actualPath = if (parentPath == "/") "/$actualName" else "$parentPath/$actualName"
         val ext = if (isDir) "" else actualName.substringAfterLast('.', "").lowercase()
 
         return FileModel(

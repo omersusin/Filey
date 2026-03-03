@@ -36,6 +36,7 @@ object FileUtils {
             mime.startsWith("text/") || ext in textExtensions -> FileType.TEXT
             ext in archiveExtensions -> FileType.ARCHIVE
             ext == "apk" -> FileType.APK
+            ext == "pdf" || mime == "application/pdf" -> FileType.PDF
             else -> FileType.OTHER
         }
     }
