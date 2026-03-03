@@ -4,6 +4,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -50,7 +51,7 @@ fun FileItemRow(
                         FileType.TEXT -> Icons.Default.Description
                         FileType.APK -> Icons.Default.Android
                         FileType.PDF -> Icons.Default.PictureAsPdf
-                        else -> Icons.Default.InsertDriveFile
+                        else -> Icons.AutoMirrored.Filled.InsertDriveFile
                     },
                     contentDescription = null,
                     modifier = Modifier.size(40.dp),
