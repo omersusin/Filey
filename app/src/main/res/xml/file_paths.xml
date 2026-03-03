@@ -1,7 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
-<paths>
-    <external-path name="external" path="." />
-    <root-path name="root" path="." />
-    <files-path name="internal_files" path="." />
-    <cache-path name="cache" path="." />
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Sadece uygulamanın kendi external files alanı -->
+    <external-files-path
+        name="app_files"
+        path="." />
+
+    <!-- Cache -->
+    <cache-path
+        name="cache"
+        path="." />
+
+    <!-- Paylaşım için geçici dizin -->
+    <cache-path
+        name="shared_files"
+        path="shared/" />
+
 </paths>
