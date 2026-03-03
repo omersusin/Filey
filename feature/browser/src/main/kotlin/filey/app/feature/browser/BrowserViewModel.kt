@@ -382,8 +382,8 @@ class BrowserViewModel(
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
                 BrowserViewModel(
-                    repository = AppContainer.fileRepository,
-                    preferences = AppContainer.preferences
+                    repository = AppContainer.Instance.fileRepository,
+                    preferences = AppContainer.Instance.preferences
                 )
             }
         }

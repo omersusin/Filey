@@ -31,10 +31,10 @@ class AppContainer(private val context: Context) {
 
     val fileRepository: FileRepository by lazy {
         DelegatingFileRepository(
-            normalRepo = normalRepository,
-            rootRepo = rootRepository,
-            shizukuRepo = shizukuRepository,
-            preferences = preferences
+            modeFlow = preferences.accessModeFlow,
+            normal = normalRepository,
+            root = rootRepository,
+            shizuku = shizukuRepository
         )
     }
 

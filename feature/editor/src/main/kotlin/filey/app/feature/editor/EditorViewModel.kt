@@ -96,7 +96,7 @@ class EditorViewModel(
     companion object {
         val Factory: ViewModelProvider.Factory = viewModelFactory {
             initializer {
-                EditorViewModel(repository = AppContainer.fileRepository)
+                EditorViewModel(repository = AppContainer.Instance.fileRepository)
             }
         }
     }
