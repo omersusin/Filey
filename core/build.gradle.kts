@@ -48,7 +48,6 @@ dependencies {
     implementation(libs.junrar)
     implementation(libs.libsu.core)
     implementation(libs.libsu.service)
-    implementation(libs.libsu.shizuku)
     implementation(libs.androidx.datastore)
     implementation(libs.shizuku.api)
 

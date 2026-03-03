@@ -2,13 +2,10 @@ package filey.app.core.data.shizuku
 
 import android.content.Context
 import android.content.pm.PackageManager
-import com.topjohnwu.superuser.Shell
-import com.topjohnwu.superuser.shizuku.ShizukuShell
 import rikka.shizuku.Shizuku
 
 /**
  * Manages Shizuku lifecycle: install check, service status, permission.
- * Uses libsu for robust shell execution over Shizuku.
  */
 object ShizukuManager {
 
@@ -48,28 +45,18 @@ object ShizukuManager {
         }
     }
 
-    private var shizukuShell: Shell? = null
-
-    @Synchronized
-    private fun getShell(): Shell {
-        val current = shizukuShell
-        if (current != null && current.isAlive) return current
-        
-        val newShell = Shell.Builder.create()
-            .setFlags(Shell.FLAG_REDIRECT_STDERR)
-            .build(ShizukuShell.Builder().build())
-        shizukuShell = newShell
-        return newShell
-    }
-
     /**
      * Execute a shell command with Shizuku (ADB-level) privileges.
      * Returns (stdout lines, stderr lines, exit code).
      */
     fun exec(vararg command: String): Triple<List<String>, List<String>, Int> {
         return try {
-            val result = getShell().newJob().add(*command).exec()
-            Triple(result.out, result.err, result.code)
+            val fullCommand = command.joinToString(" && ")
+            val process = Shizuku.newProcess(arrayOf("sh", "-c", fullCommand), null, null)
+            val stdout = process.inputStream.bufferedReader().readLines()
+            val stderr = process.errorStream.bufferedReader().readLines()
+            val exitCode = process.waitFor()
+            Triple(stdout, stderr, exitCode)
         } catch (e: Exception) {
             Triple(emptyList(), listOf(e.message ?: "Unknown error"), -1)
         }

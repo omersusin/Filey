@@ -16,7 +16,7 @@ documentfile = "1.0.1"
 junit = "4.13.2"
 kotlinxCoroutines = "1.8.1"
 datastore = "1.1.1"
-shizuku = "13.1.5"
+shizuku = "13.1.0"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -46,7 +46,6 @@ junrar = { group = "com.github.junrar", name = "junrar", version.ref = "junrar" 
 
 libsu-core = { group = "com.github.topjohnwu.libsu", name = "core", version.ref = "libsu" }
 libsu-service = { group = "com.github.topjohnwu.libsu", name = "service", version.ref = "libsu" }
-libsu-shizuku = { group = "com.github.topjohnwu.libsu", name = "shizuku", version.ref = "libsu" }
 
 shizuku-api = { group = "dev.rikka.shizuku", name = "api", version.ref = "shizuku" }
 shizuku-provider = { group = "dev.rikka.shizuku", name = "provider", version.ref = "shizuku" }
