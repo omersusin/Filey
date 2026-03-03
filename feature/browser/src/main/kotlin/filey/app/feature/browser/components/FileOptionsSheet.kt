@@ -2,6 +2,7 @@ package filey.app.feature.browser.components
 
 import android.content.Context
 import android.content.Intent
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -68,21 +69,8 @@ private fun OptionItem(
         leadingContent = {
             Icon(imageVector = icon, contentDescription = label)
         },
-        modifier = Modifier.padding(horizontal = 0.dp),
-        colors = ListItemDefaults.colors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
+        modifier = Modifier.clickable { onClick() }
     )
-    // Wrap with clickable via Modifier isn't ideal; using a simple approach
-    androidx.compose.foundation.clickable
-    Surface(onClick = onClick) {
-        ListItem(
-            headlineContent = { Text(label) },
-            leadingContent = {
-                Icon(imageVector = icon, contentDescription = label)
-            }
-        )
-    }
 }
 
 private fun shareFile(context: Context, path: String) {
