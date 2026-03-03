@@ -319,7 +319,9 @@ fun BrowserScreen(
                         selectedFiles = uiState.selectedFiles,
                         isMultiSelectActive = uiState.isMultiSelectActive,
                         onFileClick = { file ->
-                            if (uiState.isMultiSelectActive) {
+                            if (file.name == "^") {
+                                viewModel.navigateUp()
+                            } else if (uiState.isMultiSelectActive) {
                                 viewModel.toggleFileSelection(file.path)
                             } else {
                                 handleFileClick(
@@ -336,10 +338,12 @@ fun BrowserScreen(
                             }
                         },
                         onFileLongClick = { file ->
-                            if (uiState.isMultiSelectActive) {
-                                viewModel.toggleFileSelection(file.path)
-                            } else {
-                                showOptionsFor = file
+                            if (file.name != "^") {
+                                if (uiState.isMultiSelectActive) {
+                                    viewModel.toggleFileSelection(file.path)
+                                } else {
+                                    showOptionsFor = file
+                                }
                             }
                         }
                     )

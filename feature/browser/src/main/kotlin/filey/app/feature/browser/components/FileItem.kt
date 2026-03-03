@@ -54,7 +54,9 @@ fun FileListItem(
         },
         supportingContent = {
             Text(
-                text = if (file.isDirectory) {
+                text = if (file.name == "^") {
+                    "Üst dizin"
+                } else if (file.isDirectory) {
                     "${file.childCount} öğe"
                 } else {
                     "${FileUtils.formatSize(file.size)} • ${FileUtils.formatDate(file.lastModified)}"
@@ -140,6 +142,9 @@ fun FileIcon(file: FileModel, size: Int) {
 
 @Composable
 private fun getFileIconAndColor(file: FileModel): Pair<ImageVector, androidx.compose.ui.graphics.Color> {
+    if (file.name == "^") {
+        return Icons.Default.ArrowUpward to MaterialTheme.colorScheme.primary
+    }
     val type = FileUtils.getFileType(file.path, file.isDirectory)
     val cs = MaterialTheme.colorScheme
     return when (type) {

@@ -62,6 +62,19 @@ data class BrowserUiState(
                 SortOption.TYPE_ASC -> result.sortedWith(dirFirstThen { it.extension })
             }
 
+            // Prepend parent folder "^" if not at root and not searching
+            if (currentPath != "/" && searchQuery.isBlank()) {
+                val parentPath = currentPath.substringBeforeLast('/', "")
+                val target = if (parentPath.isEmpty()) "/" else parentPath
+                val parentDir = FileModel(
+                    name = "^",
+                    path = target,
+                    isDirectory = true,
+                    childCount = 0
+                )
+                result = listOf(parentDir) + result
+            }
+
             return result
         }
 
