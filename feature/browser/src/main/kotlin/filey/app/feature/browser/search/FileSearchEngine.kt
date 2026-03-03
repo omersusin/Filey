@@ -1,13 +1,16 @@
 package filey.app.feature.browser.search
 
-import filey.app.core.model.FileItem
-import filey.app.core.model.toFileItem
+import filey.app.core.model.FileModel
+import filey.app.core.model.FileType
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.yield
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 data class SearchFilter(
     val query: String = "",
@@ -20,7 +23,7 @@ data class SearchFilter(
 
 class FileSearchEngine {
 
-    fun search(rootPath: String, filter: SearchFilter): Flow<FileItem> = flow {
+    fun search(rootPath: String, filter: SearchFilter): Flow<FileModel> = flow {
         val rootDir = File(rootPath)
         if (!rootDir.exists() || !rootDir.isDirectory) return@flow
 
@@ -32,7 +35,7 @@ class FileSearchEngine {
             val children = current.listFiles() ?: continue
             for (child in children) {
                 if (child.isDirectory) queue.add(child)
-                if (matchesFilter(child, filter)) emit(child.toFileItem())
+                if (matchesFilter(child, filter)) emit(child.toFileModel())
             }
             yield()
         }
@@ -46,5 +49,28 @@ class FileSearchEngine {
         f.modifiedAfter?.let { if (file.lastModified() < it) return false }
         f.modifiedBefore?.let { if (file.lastModified() > it) return false }
         return true
+    }
+
+    private fun File.toFileModel(): FileModel {
+        val fmt = SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault())
+        return FileModel(
+            name          = name,
+            path          = absolutePath,
+            size          = length(),
+            lastModified  = lastModified(),
+            isDirectory   = isDirectory,
+            isHidden      = isHidden,
+            extension     = extension.lowercase(),
+            type          = FileType.fromFileName(name, isDirectory),
+            sizeFormatted = formatSize(length()),
+            dateFormatted = fmt.format(Date(lastModified())),
+        )
+    }
+
+    private fun formatSize(bytes: Long): String = when {
+        bytes < 1_024L               -> "$bytes B"
+        bytes < 1_048_576L           -> "${"%.1f".format(bytes / 1_024.0)} KB"
+        bytes < 1_073_741_824L       -> "${"%.1f".format(bytes / 1_048_576.0)} MB"
+        else                         -> "${"%.1f".format(bytes / 1_073_741_824.0)} GB"
     }
 }

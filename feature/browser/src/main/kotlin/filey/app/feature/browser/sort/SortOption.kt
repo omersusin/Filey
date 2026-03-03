@@ -1,26 +1,19 @@
 package filey.app.feature.browser.sort
 
-import filey.app.core.model.FileItem
+import filey.app.core.model.FileModel
+import filey.app.core.model.SortOption as CoreSortOption
 
-enum class SortField     { NAME, SIZE, DATE, EXTENSION }
-enum class SortDirection { ASC, DESC }
-
-data class SortOption(
-    val field: SortField = SortField.NAME,
-    val direction: SortDirection = SortDirection.ASC,
-    val foldersFirst: Boolean = true
-)
-
-fun List<FileItem>.sorted(option: SortOption): List<FileItem> {
-    val base: Comparator<FileItem> = when (option.field) {
-        SortField.NAME      -> compareBy { it.name.lowercase() }
-        SortField.SIZE      -> compareBy { it.size }
-        SortField.DATE      -> compareBy { it.lastModified }
-        SortField.EXTENSION -> compareBy { it.name.substringAfterLast('.', "").lowercase() }
+fun List<FileModel>.sortedWith(option: CoreSortOption): List<FileModel> {
+    val sorted = when (option) {
+        CoreSortOption.NAME_ASC  -> sortedBy { it.name.lowercase() }
+        CoreSortOption.NAME_DESC -> sortedByDescending { it.name.lowercase() }
+        CoreSortOption.DATE_ASC  -> sortedBy { it.lastModified }
+        CoreSortOption.DATE_DESC -> sortedByDescending { it.lastModified }
+        CoreSortOption.SIZE_ASC  -> sortedBy { it.size }
+        CoreSortOption.SIZE_DESC -> sortedByDescending { it.size }
+        CoreSortOption.TYPE_ASC  -> sortedBy { it.type.name }
+        CoreSortOption.TYPE_DESC -> sortedByDescending { it.type.name }
     }
-    val directed = if (option.direction == SortDirection.DESC) base.reversed() else base
-    val final    = if (option.foldersFirst)
-        compareByDescending<FileItem> { it.isDirectory }.then(directed)
-    else directed
-    return sortedWith(final)
+    // Klasörler her zaman üstte
+    return sorted.sortedByDescending { it.isDirectory }
 }
