@@ -69,8 +69,12 @@ object ArchiveHandler {
         val fis = BufferedInputStream(FileInputStream(archivePath))
         val stream: ArchiveInputStream<out LibArchiveEntry> = ArchiveStreamFactory().createArchiveInputStream(fis)
         var e = stream.nextEntry
+        val destDirPath = destDir.canonicalPath
         while (e != null) {
             val out = File(destDir, e.name)
+            if (!out.canonicalPath.startsWith(destDirPath)) {
+                throw SecurityException("Kötü niyetli zip girişi: ${e.name}")
+            }
             if (e.isDirectory) { out.mkdirs() }
             else {
                 out.parentFile?.mkdirs()
@@ -83,8 +87,12 @@ object ArchiveHandler {
 
     private fun extractRar(archivePath: String, destDir: File) {
         val archive = Archive(FileInputStream(archivePath))
+        val destDirPath = destDir.canonicalPath
         for (h in archive.fileHeaders) {
             val out = File(destDir, h.fileName)
+            if (!out.canonicalPath.startsWith(destDirPath)) {
+                throw SecurityException("Kötü niyetli rar girişi: ${h.fileName}")
+            }
             if (h.isDirectory) { out.mkdirs() }
             else {
                 out.parentFile?.mkdirs()

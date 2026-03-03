@@ -1,6 +1,7 @@
 package filey.app.feature.player
 
 import android.content.Context
+import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
@@ -20,31 +21,37 @@ data class PlayerUiState(
 class PlayerViewModel : ViewModel() {
 
     private var player: ExoPlayer? = null
+    private var currentPath: String? = null
 
     private val _uiState = MutableStateFlow(PlayerUiState())
     val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
 
     fun initPlayer(context: Context, path: String) {
-        if (player != null) return
-
-        val file = File(path)
-        _uiState.value = _uiState.value.copy(fileName = file.name)
-
-        player = ExoPlayer.Builder(context).build().apply {
-            setMediaItem(MediaItem.fromUri(path))
-            prepare()
-            playWhenReady = true
-            addListener(object : Player.Listener {
-                override fun onIsPlayingChanged(isPlaying: Boolean) {
-                    _uiState.value = _uiState.value.copy(isPlaying = isPlaying)
-                }
-
-                override fun onPlaybackStateChanged(state: Int) {
-                    if (state == Player.STATE_READY) {
-                        _uiState.value = _uiState.value.copy(duration = duration)
+        if (player == null) {
+            player = ExoPlayer.Builder(context).build().apply {
+                addListener(object : Player.Listener {
+                    override fun onIsPlayingChanged(isPlaying: Boolean) {
+                        _uiState.value = _uiState.value.copy(isPlaying = isPlaying)
                     }
-                }
-            })
+
+                    override fun onPlaybackStateChanged(state: Int) {
+                        if (state == Player.STATE_READY) {
+                            _uiState.value = _uiState.value.copy(duration = duration)
+                        }
+                    }
+                })
+            }
+        }
+
+        if (currentPath != path) {
+            currentPath = path
+            val file = File(path)
+            _uiState.value = _uiState.value.copy(fileName = file.name)
+            player?.apply {
+                setMediaItem(MediaItem.fromUri(file.toUri()))
+                prepare()
+                playWhenReady = true
+            }
         }
     }
 

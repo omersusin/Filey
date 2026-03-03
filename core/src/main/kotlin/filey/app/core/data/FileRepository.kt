@@ -83,7 +83,7 @@ class FileRepository {
         }
     }
 
-    suspend fun moveFile(sourcePath: String, destDir: String, onProgress: (Float) -> Unit) {
+    suspend fun moveFile(sourcePath: String, destDir: String, onProgress: (Float) -> Unit) = withContext(Dispatchers.IO) {
         val src = File(sourcePath)
         val dst = File(destDir, src.name)
         
