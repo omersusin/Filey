@@ -1,0 +1,4 @@
+-keepattributes *Annotation*
+-keep class com.omersusin.filey.** { *; }
+-dontwarn org.apache.commons.compress.**
+-dontwarn com.github.junrar.**

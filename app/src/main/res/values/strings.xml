@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Filey</string>
+    <string name="internal_storage">Dahili Depolama</string>
+    <string name="sd_card">SD Kart</string>
+    <string name="empty_folder">Bu klasör boş</string>
+    <string name="permission_needed">Dosyalara erişim izni gerekli</string>
+    <string name="grant_permission">İzin Ver</string>
+    <string name="sort_name">Ada Göre</string>
+    <string name="sort_date">Tarihe Göre</string>
+    <string name="sort_size">Boyuta Göre</string>
+    <string name="sort_type">Türe Göre</string>
+    <string name="copy">Kopyala</string>
+    <string name="cut">Kes</string>
+    <string name="paste">Yapıştır</string>
+    <string name="delete">Sil</string>
+    <string name="rename">Yeniden Adlandır</string>
+    <string name="share">Paylaş</string>
+    <string name="properties">Özellikler</string>
+    <string name="create_folder">Yeni Klasör</string>
+    <string name="create_file">Yeni Dosya</string>
+    <string name="search">Ara</string>
+    <string name="cancel">İptal</string>
+    <string name="ok">Tamam</string>
+    <string name="save">Kaydet</string>
+    <string name="extract_here">Buraya Çıkar</string>
+    <string name="compress">Sıkıştır</string>
+    <string name="root_access">Root Erişimi</string>
+</resources>
