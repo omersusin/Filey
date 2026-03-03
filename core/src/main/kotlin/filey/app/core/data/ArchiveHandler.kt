@@ -3,10 +3,12 @@ package filey.app.core.data
 import com.github.junrar.Archive
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.apache.commons.compress.archivers.ArchiveInputStream
 import org.apache.commons.compress.archivers.ArchiveStreamFactory
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry
 import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream
 import java.io.*
+import org.apache.commons.compress.archivers.ArchiveEntry as LibArchiveEntry
 
 object ArchiveHandler {
 
@@ -27,7 +29,7 @@ object ArchiveHandler {
         val entries = mutableListOf<ArchiveEntry>()
         try {
             val fis = BufferedInputStream(FileInputStream(path))
-            val stream = ArchiveStreamFactory().createArchiveInputStream(fis)
+            val stream: ArchiveInputStream<out LibArchiveEntry> = ArchiveStreamFactory().createArchiveInputStream(fis)
             var e = stream.nextEntry
             while (e != null) {
                 entries.add(ArchiveEntry(
@@ -65,7 +67,7 @@ object ArchiveHandler {
 
     private fun extractCommon(archivePath: String, destDir: File) {
         val fis = BufferedInputStream(FileInputStream(archivePath))
-        val stream = ArchiveStreamFactory().createArchiveInputStream(fis)
+        val stream: ArchiveInputStream<out LibArchiveEntry> = ArchiveStreamFactory().createArchiveInputStream(fis)
         var e = stream.nextEntry
         while (e != null) {
             val out = File(destDir, e.name)
