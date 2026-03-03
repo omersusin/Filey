@@ -1,5 +1,3 @@
-cd /sdcard/Filey
-cat > settings.gradle.kts << 'EOF'
 pluginManagement {
     repositories {
         google()
@@ -26,4 +24,3 @@ include(":feature:viewer")
 include(":feature:player")
 include(":feature:editor")
 include(":feature:archive")
-EOF

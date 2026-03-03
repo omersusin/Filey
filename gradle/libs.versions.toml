@@ -1,4 +1,3 @@
-cat > gradle/libs.versions.toml << 'EOF'
 [versions]
 agp = "8.4.2"
 kotlin = "1.9.24"
@@ -47,4 +46,3 @@ libsu-service = { group = "com.github.topjohnwu.libsu", name = "service", versio
 android-application = { id = "com.android.application", version.ref = "agp" }
 android-library = { id = "com.android.library", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
-EOF

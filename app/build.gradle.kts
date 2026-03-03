@@ -1,4 +1,3 @@
-cat > app/build.gradle.kts << 'EOF'
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -66,4 +65,3 @@ dependencies {
 
     debugImplementation(libs.compose.ui.tooling)
 }
-EOF
