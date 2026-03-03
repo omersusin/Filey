@@ -51,4 +51,4 @@ Hata bildirimleri veya özellik önerileri için lütfen bir `Issue` açın veya
 Bu proje MIT Lisansı altında lisanslanmıştır. Daha fazla bilgi için `LICENSE` dosyasına göz atabilirsiniz.
 
 ---
-**Geliştirici:** [Ömer Susin](https://github.com/omersusin)
+**Geliştirici:** [Ömer Süsin](https://github.com/omersusin)

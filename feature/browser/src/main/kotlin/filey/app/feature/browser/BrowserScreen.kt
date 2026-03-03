@@ -308,7 +308,7 @@ fun BrowserScreen(
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        "Geliştirici: Ömer Susin",
+                        "Geliştirici: Ömer Süsin",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.primary
                     )
