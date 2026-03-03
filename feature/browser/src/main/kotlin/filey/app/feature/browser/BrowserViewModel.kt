@@ -2,8 +2,11 @@ package filey.app.feature.browser
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import filey.app.core.data.FileProgress
 import filey.app.core.data.FileRepository
+import filey.app.core.data.LocalFileRepository
 import filey.app.core.model.FileModel
+import filey.app.core.model.FileResult
 import filey.app.core.model.SortOption
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,25 +34,33 @@ data class BrowserUiState(
 
 class BrowserViewModel : ViewModel() {
 
-    private val repository = FileRepository()
+    // Sprint 1: DI yok → local impl ile ayağa kaldırıyoruz.
+    private val repository: FileRepository = LocalFileRepository()
+
     private val _uiState = MutableStateFlow(BrowserUiState())
     val uiState: StateFlow<BrowserUiState> = _uiState.asStateFlow()
 
-    // Orijinal listeyi burada tutuyoruz ki arama yaparken veri kaybolmasın
     private var fullFileList: List<FileModel> = emptyList()
 
     fun loadDirectory(path: String) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, currentPath = path, error = null)
-            try {
-                val files = repository.listFiles(path, _uiState.value.showHidden)
-                fullFileList = sortFiles(files, _uiState.value.sortOption)
-                updateFilteredList()
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(
-                    error = e.message ?: "Dosyalar yüklenemedi",
-                    isLoading = false
-                )
+
+            when (val res = repository.listFiles(path)) {
+                is FileResult.Success -> {
+                    var files = res.data
+                    if (!_uiState.value.showHidden) {
+                        files = files.filterNot { it.name.startsWith(".") }
+                    }
+                    fullFileList = sortFiles(files, _uiState.value.sortOption)
+                    updateFilteredList()
+                }
+                is FileResult.Error -> {
+                    _uiState.value = _uiState.value.copy(
+                        error = res.message,
+                        isLoading = false
+                    )
+                }
             }
         }
     }
@@ -92,44 +103,36 @@ class BrowserViewModel : ViewModel() {
 
     fun createFolder(name: String) {
         viewModelScope.launch {
-            try {
-                repository.createFolder(_uiState.value.currentPath, name)
-                loadDirectory(_uiState.value.currentPath)
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(error = e.message)
+            when (val res = repository.createDirectory(_uiState.value.currentPath, name)) {
+                is FileResult.Success -> loadDirectory(_uiState.value.currentPath)
+                is FileResult.Error -> _uiState.value = _uiState.value.copy(error = res.message)
             }
         }
     }
 
     fun createFile(name: String) {
         viewModelScope.launch {
-            try {
-                repository.createFile(_uiState.value.currentPath, name)
-                loadDirectory(_uiState.value.currentPath)
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(error = e.message)
+            when (val res = repository.createFile(_uiState.value.currentPath, name)) {
+                is FileResult.Success -> loadDirectory(_uiState.value.currentPath)
+                is FileResult.Error -> _uiState.value = _uiState.value.copy(error = res.message)
             }
         }
     }
 
     fun deleteFile(file: FileModel) {
         viewModelScope.launch {
-            try {
-                repository.deleteFile(file.path)
-                loadDirectory(_uiState.value.currentPath)
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(error = e.message)
+            when (val res = repository.delete(file.path)) {
+                is FileResult.Success -> loadDirectory(_uiState.value.currentPath)
+                is FileResult.Error -> _uiState.value = _uiState.value.copy(error = res.message)
             }
         }
     }
 
     fun renameFile(file: FileModel, newName: String) {
         viewModelScope.launch {
-            try {
-                repository.renameFile(file.path, newName)
-                loadDirectory(_uiState.value.currentPath)
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(error = e.message)
+            when (val res = repository.rename(file.path, newName)) {
+                is FileResult.Success -> loadDirectory(_uiState.value.currentPath)
+                is FileResult.Error -> _uiState.value = _uiState.value.copy(error = res.message)
             }
         }
     }
@@ -144,22 +147,35 @@ class BrowserViewModel : ViewModel() {
 
     fun paste() {
         val clip = _uiState.value.clipboard ?: return
+        val dest = _uiState.value.currentPath.trimEnd('/') + "/" + clip.file.name
+
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(operationProgress = 0f)
-            try {
-                if (clip.isCut) {
-                    repository.moveFile(clip.file.path, _uiState.value.currentPath) { progress ->
-                        _uiState.value = _uiState.value.copy(operationProgress = progress)
+            _uiState.value = _uiState.value.copy(operationProgress = 0f, error = null)
+
+            if (clip.isCut) {
+                when (val res = repository.move(clip.file.path, dest)) {
+                    is FileResult.Success -> {
+                        _uiState.value = _uiState.value.copy(clipboard = null, operationProgress = null)
+                        loadDirectory(_uiState.value.currentPath)
                     }
-                } else {
-                    repository.copyFile(clip.file.path, _uiState.value.currentPath) { progress ->
-                        _uiState.value = _uiState.value.copy(operationProgress = progress)
+                    is FileResult.Error -> {
+                        _uiState.value = _uiState.value.copy(error = res.message, operationProgress = null)
                     }
                 }
-                _uiState.value = _uiState.value.copy(clipboard = null, operationProgress = null)
-                loadDirectory(_uiState.value.currentPath)
-            } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(error = e.message, operationProgress = null)
+            } else {
+                val copyRes = repository.copy(clip.file.path, dest) { p: FileProgress ->
+                    val v = p.percentage.coerceIn(0f, 1f)
+                    _uiState.value = _uiState.value.copy(operationProgress = v)
+                }
+                when (copyRes) {
+                    is FileResult.Success -> {
+                        _uiState.value = _uiState.value.copy(clipboard = null, operationProgress = null)
+                        loadDirectory(_uiState.value.currentPath)
+                    }
+                    is FileResult.Error -> {
+                        _uiState.value = _uiState.value.copy(error = copyRes.message, operationProgress = null)
+                    }
+                }
             }
         }
     }
