@@ -12,6 +12,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -98,12 +99,12 @@ fun BrowserScreen(
                         }
                         IconButton(onClick = { viewModel.toggleViewMode() }) {
                             Icon(
-                                if (state.isGridView) Icons.Default.ViewList else Icons.Default.GridView,
+                                if (state.isGridView) Icons.AutoMirrored.Filled.ViewList else Icons.Default.GridView,
                                 "Görünüm"
                             )
                         }
                         IconButton(onClick = { showSortSheet = true }) {
-                            Icon(Icons.Default.Sort, "Sırala")
+                            Icon(Icons.AutoMirrored.Filled.Sort, "Sırala")
                         }
                         IconButton(onClick = { showNewFolderDialog = true }) {
                             Icon(Icons.Default.CreateNewFolder, "Yeni Klasör")
