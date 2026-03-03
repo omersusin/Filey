@@ -21,9 +21,11 @@ class ChecksumAction : FileAction {
         callback: FileActionCallback
     ): ActionResult {
         return try {
-            callback.showSnackbar("Hesaplanıyor…")
             val digest = MessageDigest.getInstance("SHA-256")
-            FileInputStream(file.path).use { fis ->
+            val javaFile = java.io.File(file.path)
+            if (!javaFile.exists()) return ActionResult.Error("Dosya bulunamadı")
+            
+            FileInputStream(javaFile).use { fis ->
                 val buffer = ByteArray(8192)
                 var bytesRead: Int
                 while (fis.read(buffer).also { bytesRead = it } != -1) {
@@ -32,8 +34,7 @@ class ChecksumAction : FileAction {
             }
             val hash = digest.digest().joinToString("") { "%02x".format(it) }
             callback.copyToClipboard(hash)
-            callback.showSnackbar("SHA-256 panoya kopyalandı")
-            ActionResult.Success(hash)
+            ActionResult.Success("SHA-256 panoya kopyalandı")
         } catch (e: Exception) {
             ActionResult.Error("Checksum hatası: ${e.message}")
         }

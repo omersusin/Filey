@@ -6,7 +6,7 @@ class ActionRegistry(
     private val actions: List<FileAction>
 ) {
     fun getActionsForFile(file: FileModel): List<FileAction> =
-        actions.filter { it.isVisible(file) }
+        actions.filter { action -> action.isVisible(file) }
 
     companion object {
         /** Creates the default registry with all built-in actions. */
