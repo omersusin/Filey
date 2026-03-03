@@ -96,7 +96,7 @@ fun DeleteConfirmDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Silme Onayı") },
-        text = { Text(""$fileName" kalıcı olarak silinecek. Emin misiniz?") },
+        text = { Text("'$fileName' kalıcı olarak silinecek. Emin misiniz?") },
         confirmButton = {
             TextButton(onClick = onConfirm) {
                 Text("Sil", color = MaterialTheme.colorScheme.error)

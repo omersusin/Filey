@@ -42,9 +42,7 @@ fun AccessModeSheet(
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
             )
             Text(
-                "Normal: Standart dosya erişimi
-Root: Tam sistem erişimi (root gerekli)
-Shizuku: ADB seviyesi erişim",
+                "Normal: Standart dosya erişimi\nRoot: Tam sistem erişimi (root gerekli)\nShizuku: ADB seviyesi erişim",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)

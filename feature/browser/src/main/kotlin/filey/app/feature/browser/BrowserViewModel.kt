@@ -11,7 +11,7 @@ import androidx.lifecycle.viewmodel.viewModelFactory
 import filey.app.core.data.FileRepository
 import filey.app.core.data.preferences.AppPreferences
 import filey.app.core.model.*
-import filey.app.di.AppContainer
+import filey.app.core.di.AppContainer
 import filey.app.feature.browser.actions.FileActionCallback
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

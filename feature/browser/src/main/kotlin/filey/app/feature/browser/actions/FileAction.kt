@@ -1,29 +1,18 @@
 package filey.app.feature.browser.actions
 
 import android.content.Context
-import androidx.compose.ui.graphics.vector.ImageVector
 import filey.app.core.model.FileModel
 
-/**
- * A single action that can be performed on a file.
- * Register new actions → they automatically appear in FileOptionsSheet.
- */
 interface FileAction {
-    val id: String
     val title: String
-    val icon: ImageVector
+    val icon: androidx.compose.ui.graphics.vector.ImageVector
+    val isPrimary: Boolean get() = false
 
-    fun isVisible(file: FileModel): Boolean = true
-
-    /**
-     * Execute the action.
-     * Return an [ActionResult] so the UI knows what happened.
-     */
     suspend fun execute(
         context: Context,
         file: FileModel,
         callback: FileActionCallback
-    ): ActionResult
+    )
 }
 
 interface FileActionCallback {
@@ -32,4 +21,6 @@ interface FileActionCallback {
     fun navigateTo(path: String)
     fun copyToClipboard(text: String)
     fun setClipboard(paths: List<String>, isCut: Boolean)
+    fun onSuccess(message: String)
+    fun onError(message: String)
 }
