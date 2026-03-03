@@ -2,8 +2,12 @@ package filey.app.core.data
 
 import filey.app.core.model.FileModel
 import filey.app.core.model.FileResult
+import filey.app.core.model.FileType
 import filey.app.core.model.fileResultOf
 import java.io.File
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -34,22 +38,13 @@ class LocalFileRepository : FileRepository {
             if (!src.exists()) throw java.io.FileNotFoundException(source)
 
             val dst = File(destination)
-
             val totalBytes = if (src.isDirectory) dirSize(src) else src.length()
             var processed = 0L
 
             if (src.isDirectory) {
                 copyDir(src, dst) { bytesDelta ->
                     processed += bytesDelta
-                    onProgress(
-                        FileProgress(
-                            currentFile = src.name,
-                            currentFileIndex = 0,
-                            totalFiles = 1,
-                            bytesProcessed = processed,
-                            totalBytes = totalBytes
-                        )
-                    )
+                    onProgress(progressOf(src.name, processed, totalBytes))
                 }
             } else {
                 dst.parentFile?.mkdirs()
@@ -61,15 +56,7 @@ class LocalFileRepository : FileRepository {
                             if (read <= 0) break
                             output.write(buf, 0, read)
                             processed += read
-                            onProgress(
-                                FileProgress(
-                                    currentFile = src.name,
-                                    currentFileIndex = 0,
-                                    totalFiles = 1,
-                                    bytesProcessed = processed,
-                                    totalBytes = totalBytes
-                                )
-                            )
+                            onProgress(progressOf(src.name, processed, totalBytes))
                         }
                     }
                 }
@@ -160,15 +147,71 @@ class LocalFileRepository : FileRepository {
         }
     }
 
-    private fun File.toFileModel(): FileModel {
-        // Projedeki FileModel constructor'ı farklıysa, bunu çıktına göre düzeltiriz.
-        return FileModel(
-            path = absolutePath,
-            name = name,
-            size = if (isDirectory) 0L else length(),
-            lastModified = lastModified(),
-            isDirectory = isDirectory
+    private fun progressOf(name: String, processed: Long, total: Long): FileProgress {
+        return FileProgress(
+            currentFile = name,
+            currentFileIndex = 0,
+            totalFiles = 1,
+            bytesProcessed = processed,
+            totalBytes = total
         )
+    }
+
+    private fun File.toFileModel(): FileModel {
+        val ext = extensionOrEmpty()
+        val lm = lastModified()
+        val isDir = isDirectory
+        val sizeBytes = if (isDir) 0L else length()
+        val count = if (isDir) (list()?.size ?: 0) else 0
+
+        return FileModel(
+            name = name,
+            path = absolutePath,
+            size = sizeBytes,
+            lastModified = lm,
+            isDirectory = isDir,
+            isHidden = isHidden,
+            extension = ext,
+            type = guessType(ext, isDir),
+            sizeFormatted = formatBytes(sizeBytes),
+            dateFormatted = formatDate(lm),
+            childCount = count
+        )
+    }
+
+    private fun File.extensionOrEmpty(): String {
+        val n = name
+        val dot = n.lastIndexOf('.')
+        return if (dot > 0 && dot < n.length - 1 && !isDirectory) n.substring(dot + 1) else ""
+    }
+
+    private fun guessType(ext: String, isDir: Boolean): FileType {
+        if (isDir) return FileType.DIRECTORY
+        return when (ext.lowercase()) {
+            "jpg", "jpeg", "png", "webp", "gif", "bmp", "heic" -> FileType.IMAGE
+            "mp4", "mkv", "webm", "avi", "mov" -> FileType.VIDEO
+            "mp3", "wav", "m4a", "flac", "ogg" -> FileType.AUDIO
+            "pdf" -> FileType.PDF
+            "zip", "rar", "7z", "tar", "gz" -> FileType.ARCHIVE
+            "txt", "md", "json", "xml", "csv", "log" -> FileType.TEXT
+            "apk" -> FileType.APK
+            else -> FileType.OTHER
+        }
+    }
+
+    private fun formatBytes(bytes: Long): String {
+        if (bytes < 1024) return "${bytes} B"
+        val kb = bytes / 1024.0
+        if (kb < 1024) return String.format(Locale.getDefault(), "%.1f KB", kb)
+        val mb = kb / 1024.0
+        if (mb < 1024) return String.format(Locale.getDefault(), "%.1f MB", mb)
+        val gb = mb / 1024.0
+        return String.format(Locale.getDefault(), "%.1f GB", gb)
+    }
+
+    private fun formatDate(millis: Long): String {
+        val df = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+        return df.format(Date(millis))
     }
 
     private fun dirSize(dir: File): Long {
