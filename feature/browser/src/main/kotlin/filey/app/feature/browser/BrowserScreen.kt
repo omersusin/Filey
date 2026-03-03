@@ -47,6 +47,7 @@ fun BrowserScreen(
     var showNewFolderDialog by remember { mutableStateOf(false) }
     var showRenameDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showAboutDialog by remember { mutableStateOf(false) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -94,6 +95,9 @@ fun BrowserScreen(
                         }
                     },
                     actions = {
+                        IconButton(onClick = { showAboutDialog = true }) {
+                            Icon(Icons.Default.Info, "Hakkında")
+                        }
                         IconButton(onClick = { viewModel.toggleSearch() }) {
                             Icon(Icons.Default.Search, "Ara")
                         }
@@ -270,6 +274,50 @@ fun BrowserScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteDialog = false }) { Text("İptal") }
+            }
+        )
+    }
+
+    if (showAboutDialog) {
+        AlertDialog(
+            onDismissRequest = { showAboutDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.Info,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(32.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text("Filey Hakkında")
+                }
+            },
+            text = {
+                Column {
+                    Text(
+                        "Filey - Modern Dosya Yöneticisi",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text("Sürüm: 1.0.0", style = MaterialTheme.typography.bodySmall)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        "Jetpack Compose ve Material 3 ile geliştirilmiş, Root desteğine sahip hızlı bir dosya yöneticisi.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        "Geliştirici: Ömer Susin",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showAboutDialog = false }) {
+                    Text("Kapat")
+                }
             }
         )
     }
