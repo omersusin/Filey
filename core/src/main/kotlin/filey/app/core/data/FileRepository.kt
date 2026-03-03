@@ -7,18 +7,14 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
+import java.nio.channels.FileChannel
 
 class FileRepository {
 
     suspend fun listFiles(path: String, showHidden: Boolean): List<FileModel> =
         withContext(Dispatchers.IO) {
             val dir = File(path)
-            if (!dir.exists() || !dir.isDirectory) {
-                if (RootManager.isRootAvailable) {
-                    // Root ile listeleme mantığı buraya eklenebilir
-                }
-                return@withContext emptyList()
-            }
+            if (!dir.exists() || !dir.isDirectory) return@withContext emptyList()
             val files = dir.listFiles() ?: return@withContext emptyList()
             files.filter { showHidden || !it.isHidden }
                 .map { FileUtils.fileToModel(it) }
@@ -42,17 +38,30 @@ class FileRepository {
     private suspend fun copySingleFile(src: File, dst: File, onProgress: (Float) -> Unit) {
         try {
             val totalSize = src.length()
-            var bytesCopied = 0L
-            
-            FileInputStream(src).use { input ->
-                FileOutputStream(dst).use { output ->
-                    val buffer = ByteArray(8192)
-                    var bytes = input.read(buffer)
-                    while (bytes >= 0) {
-                        output.write(buffer, 0, bytes)
-                        bytesCopied += bytes
-                        onProgress(bytesCopied.toFloat() / totalSize)
-                        bytes = input.read(buffer)
+            if (totalSize == 0L) {
+                dst.createNewFile()
+                onProgress(1f)
+                return
+            }
+
+            FileInputStream(src).use { fis ->
+                FileOutputStream(dst).use { fos ->
+                    val sourceChannel = fis.channel
+                    val destChannel = fos.channel
+                    val bufferSize = 1024 * 1024 // 1MB Buffer
+                    var transferred = 0L
+                    var lastReportedProgress = 0f
+
+                    while (transferred < totalSize) {
+                        val count = sourceChannel.transferTo(transferred, bufferSize.toLong(), destChannel)
+                        transferred += count
+                        val currentProgress = transferred.toFloat() / totalSize
+                        
+                        // Sadece %1'lik artışlarda arayüzü tetikle (Performans için kritik)
+                        if (currentProgress - lastReportedProgress >= 0.01f || currentProgress >= 0.99f) {
+                            onProgress(currentProgress)
+                            lastReportedProgress = currentProgress
+                        }
                     }
                 }
             }
@@ -77,9 +86,12 @@ class FileRepository {
     suspend fun moveFile(sourcePath: String, destDir: String, onProgress: (Float) -> Unit) {
         val src = File(sourcePath)
         val dst = File(destDir, src.name)
+        
+        // Önce hızlı taşıma (renameTo) dene
         if (src.renameTo(dst)) {
             onProgress(1f)
         } else {
+            // Farklı mount point'ler arasındaysa kopyala ve sil
             copyFile(sourcePath, destDir, onProgress)
             deleteFile(sourcePath)
         }
