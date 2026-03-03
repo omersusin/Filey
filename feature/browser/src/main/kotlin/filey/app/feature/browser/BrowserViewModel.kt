@@ -79,9 +79,14 @@ class BrowserViewModel(
     }
 
     fun navigateUp() {
-        val parent = _uiState.value.currentPath.substringBeforeLast('/', "")
-        if (parent.isNotEmpty() && parent != _uiState.value.currentPath) {
-            navigateTo(parent)
+        val currentPath = _uiState.value.currentPath
+        if (currentPath == "/") return
+
+        val parent = currentPath.substringBeforeLast('/', "")
+        val target = if (parent.isEmpty()) "/" else parent
+        
+        if (target != currentPath) {
+            navigateTo(target)
         }
     }
 
