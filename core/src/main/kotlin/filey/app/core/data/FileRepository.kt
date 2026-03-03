@@ -7,17 +7,43 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
-import java.nio.channels.FileChannel
 
 class FileRepository {
 
     suspend fun listFiles(path: String, showHidden: Boolean): List<FileModel> =
         withContext(Dispatchers.IO) {
             val dir = File(path)
-            if (!dir.exists() || !dir.isDirectory) return@withContext emptyList()
-            val files = dir.listFiles() ?: return@withContext emptyList()
-            files.filter { showHidden || !it.isHidden }
-                .map { FileUtils.fileToModel(it) }
+            
+            // Standart listeleme dene
+            val files = dir.listFiles()
+            if (files != null) {
+                return@withContext files.filter { showHidden || !it.isHidden }
+                    .map { FileUtils.fileToModel(it) }
+            }
+
+            // Standart listeleme başarısızsa ve Root varsa Root ile dene
+            if (RootManager.isRootAvailable) {
+                return@withContext RootManager.listAsRoot(path).map { name ->
+                    val fullPath = if (path.endsWith("/")) "$path$name" else "$path/$name"
+                    // Root üzerinden meta veri çekmek maliyetli olduğu için temel bir model oluşturuyoruz
+                    val isDirectory = RootManager.isDirectory(fullPath)
+                    FileModel(
+                        name = name,
+                        path = fullPath,
+                        size = 0L,
+                        lastModified = 0L,
+                        isDirectory = isDirectory,
+                        isHidden = name.startsWith("."),
+                        extension = name.substringAfterLast(".", ""),
+                        type = FileUtils.getFileType(name.substringAfterLast(".", ""), isDirectory),
+                        sizeFormatted = if (isDirectory) "--" else "Root Dosyası",
+                        dateFormatted = "--",
+                        childCount = 0
+                    )
+                }.filter { showHidden || !it.isHidden }
+            }
+
+            emptyList()
         }
 
     suspend fun copyFile(
@@ -39,7 +65,7 @@ class FileRepository {
         try {
             val totalSize = src.length()
             if (totalSize == 0L) {
-                dst.createNewFile()
+                if (src.exists()) dst.createNewFile()
                 onProgress(1f)
                 return
             }
@@ -54,10 +80,10 @@ class FileRepository {
 
                     while (transferred < totalSize) {
                         val count = sourceChannel.transferTo(transferred, bufferSize.toLong(), destChannel)
+                        if (count <= 0) break // Sonsuz döngü engeli
                         transferred += count
                         val currentProgress = transferred.toFloat() / totalSize
                         
-                        // Sadece %1'lik artışlarda arayüzü tetikle (Performans için kritik)
                         if (currentProgress - lastReportedProgress >= 0.01f || currentProgress >= 0.99f) {
                             onProgress(currentProgress)
                             lastReportedProgress = currentProgress
@@ -87,11 +113,9 @@ class FileRepository {
         val src = File(sourcePath)
         val dst = File(destDir, src.name)
         
-        // Önce hızlı taşıma (renameTo) dene
         if (src.renameTo(dst)) {
             onProgress(1f)
         } else {
-            // Farklı mount point'ler arasındaysa kopyala ve sil
             copyFile(sourcePath, destDir, onProgress)
             deleteFile(sourcePath)
         }
@@ -117,10 +141,14 @@ class FileRepository {
     }
 
     suspend fun createFolder(parentPath: String, name: String) = withContext(Dispatchers.IO) {
-        File(parentPath, name).mkdirs()
+        if (!File(parentPath, name).mkdirs() && RootManager.isRootAvailable) {
+            RootManager.execute("mkdir -p '$parentPath/$name'")
+        }
     }
 
     suspend fun createFile(parentPath: String, name: String) = withContext(Dispatchers.IO) {
-        File(parentPath, name).createNewFile()
+        if (!File(parentPath, name).createNewFile() && RootManager.isRootAvailable) {
+            RootManager.execute("touch '$parentPath/$name'")
+        }
     }
 }

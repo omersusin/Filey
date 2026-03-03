@@ -144,7 +144,23 @@ fun BrowserScreen(
                                 file.type == FileType.AUDIO -> onOpenAudio(file.path)
                                 file.type == FileType.ARCHIVE -> onOpenArchive(file.path)
                                 file.type == FileType.TEXT -> onOpenText(file.path)
-                                else -> onOpenText(file.path)
+                                else -> {
+                                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                                        val uri = androidx.core.content.FileProvider.getUriForFile(
+                                            context,
+                                            "${context.packageName}.fileprovider",
+                                            java.io.File(file.path)
+                                        )
+                                        setDataAndType(uri, filey.app.core.util.FileUtils.getMimeType(file.path))
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }
+                                    try {
+                                        context.startActivity(intent)
+                                    } catch (_: Exception) {
+                                        onOpenText(file.path)
+                                    }
+                                }
+
                             }
                         },
                         onLongClick = { index ->
@@ -162,7 +178,23 @@ fun BrowserScreen(
                                 file.type == FileType.AUDIO -> onOpenAudio(file.path)
                                 file.type == FileType.ARCHIVE -> onOpenArchive(file.path)
                                 file.type == FileType.TEXT -> onOpenText(file.path)
-                                else -> onOpenText(file.path)
+                                else -> {
+                                    val intent = Intent(Intent.ACTION_VIEW).apply {
+                                        val uri = androidx.core.content.FileProvider.getUriForFile(
+                                            context,
+                                            "${context.packageName}.fileprovider",
+                                            java.io.File(file.path)
+                                        )
+                                        setDataAndType(uri, filey.app.core.util.FileUtils.getMimeType(file.path))
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }
+                                    try {
+                                        context.startActivity(intent)
+                                    } catch (_: Exception) {
+                                        onOpenText(file.path)
+                                    }
+                                }
+
                             }
                         },
                         onLongClick = { index ->

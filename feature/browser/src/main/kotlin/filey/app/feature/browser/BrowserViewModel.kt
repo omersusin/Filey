@@ -32,17 +32,19 @@ data class BrowserUiState(
 class BrowserViewModel : ViewModel() {
 
     private val repository = FileRepository()
-
     private val _uiState = MutableStateFlow(BrowserUiState())
     val uiState: StateFlow<BrowserUiState> = _uiState.asStateFlow()
+
+    // Orijinal listeyi burada tutuyoruz ki arama yaparken veri kaybolmasın
+    private var fullFileList: List<FileModel> = emptyList()
 
     fun loadDirectory(path: String) {
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isLoading = true, currentPath = path, error = null)
             try {
                 val files = repository.listFiles(path, _uiState.value.showHidden)
-                val sorted = sortFiles(files, _uiState.value.sortOption)
-                _uiState.value = _uiState.value.copy(files = sorted, isLoading = false)
+                fullFileList = sortFiles(files, _uiState.value.sortOption)
+                updateFilteredList()
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     error = e.message ?: "Dosyalar yüklenemedi",
@@ -52,9 +54,25 @@ class BrowserViewModel : ViewModel() {
         }
     }
 
+    private fun updateFilteredList() {
+        val query = _uiState.value.searchQuery
+        val filtered = if (query.isEmpty()) {
+            fullFileList
+        } else {
+            fullFileList.filter { it.name.contains(query, ignoreCase = true) }
+        }
+        _uiState.value = _uiState.value.copy(files = filtered, isLoading = false)
+    }
+
     fun setSortOption(option: SortOption) {
-        val sorted = sortFiles(_uiState.value.files, option)
-        _uiState.value = _uiState.value.copy(sortOption = option, files = sorted)
+        fullFileList = sortFiles(fullFileList, option)
+        _uiState.value = _uiState.value.copy(sortOption = option)
+        updateFilteredList()
+    }
+
+    fun setSearchQuery(query: String) {
+        _uiState.value = _uiState.value.copy(searchQuery = query)
+        updateFilteredList()
     }
 
     fun toggleShowHidden() {
@@ -66,22 +84,10 @@ class BrowserViewModel : ViewModel() {
         _uiState.value = _uiState.value.copy(isGridView = !_uiState.value.isGridView)
     }
 
-    fun setSearchQuery(query: String) {
-        _uiState.value = _uiState.value.copy(searchQuery = query)
-        if (query.isEmpty()) {
-            loadDirectory(_uiState.value.currentPath)
-        } else {
-            val filtered = _uiState.value.files.filter {
-                it.name.contains(query, ignoreCase = true)
-            }
-            _uiState.value = _uiState.value.copy(files = filtered)
-        }
-    }
-
     fun toggleSearch() {
         val newSearching = !_uiState.value.isSearching
         _uiState.value = _uiState.value.copy(isSearching = newSearching, searchQuery = "")
-        if (!newSearching) loadDirectory(_uiState.value.currentPath)
+        if (!newSearching) updateFilteredList()
     }
 
     fun createFolder(name: String) {
