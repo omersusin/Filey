@@ -1,7 +1,8 @@
 package filey.app.core.model
 
 enum class FileType {
-    IMAGE, VIDEO, AUDIO, TEXT, ARCHIVE, UNKNOWN;
+    IMAGE, VIDEO, AUDIO, TEXT, ARCHIVE,
+    DIRECTORY, PDF, APK, OTHER, UNKNOWN;
 
     companion object {
         private val IMAGE_EXT   = setOf("jpg","jpeg","png","gif","bmp","webp","svg","heic","heif")
@@ -11,7 +12,8 @@ enum class FileType {
                                         "kt","java","py","js","ts","html","css","sh","conf","toml","ini")
         private val ARCHIVE_EXT = setOf("zip","tar","gz","bz2","7z","rar","xz")
 
-        fun fromFileName(name: String): FileType {
+        fun fromFileName(name: String, isDirectory: Boolean = false): FileType {
+            if (isDirectory) return DIRECTORY
             val ext = name.substringAfterLast('.', "").lowercase()
             return when {
                 ext in IMAGE_EXT   -> IMAGE
@@ -19,7 +21,9 @@ enum class FileType {
                 ext in AUDIO_EXT   -> AUDIO
                 ext in TEXT_EXT    -> TEXT
                 ext in ARCHIVE_EXT -> ARCHIVE
-                else               -> UNKNOWN
+                ext == "pdf"       -> PDF
+                ext == "apk"       -> APK
+                else               -> OTHER
             }
         }
     }
