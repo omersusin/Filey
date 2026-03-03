@@ -19,9 +19,15 @@ object RootManager {
     fun execute(command: String): Shell.Result = Shell.cmd(command).exec()
 
     fun listAsRoot(path: String): List<String> {
-        val r = Shell.cmd("ls -la '$path'").exec()
+        val r = Shell.cmd("ls -1 '$path'").exec()
         return if (r.isSuccess) r.out else emptyList()
     }
+
+    fun isDirectory(path: String): Boolean =
+        Shell.cmd("[ -d '$path' ]").exec().isSuccess
+
+    fun exists(path: String): Boolean =
+        Shell.cmd("[ -e '$path' ]").exec().isSuccess
 
     fun readAsRoot(path: String): String? {
         val r = Shell.cmd("cat '$path'").exec()

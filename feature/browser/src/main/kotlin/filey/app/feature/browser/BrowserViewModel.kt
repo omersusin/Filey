@@ -23,6 +23,7 @@ data class BrowserUiState(
     val showHidden: Boolean = false,
     val isGridView: Boolean = false,
     val clipboard: ClipboardData? = null,
+    val operationProgress: Float? = null,
     val error: String? = null,
     val searchQuery: String = "",
     val isSearching: Boolean = false
@@ -138,16 +139,21 @@ class BrowserViewModel : ViewModel() {
     fun paste() {
         val clip = _uiState.value.clipboard ?: return
         viewModelScope.launch {
+            _uiState.value = _uiState.value.copy(operationProgress = 0f)
             try {
                 if (clip.isCut) {
-                    repository.moveFile(clip.file.path, _uiState.value.currentPath)
+                    repository.moveFile(clip.file.path, _uiState.value.currentPath) { progress ->
+                        _uiState.value = _uiState.value.copy(operationProgress = progress)
+                    }
                 } else {
-                    repository.copyFile(clip.file.path, _uiState.value.currentPath)
+                    repository.copyFile(clip.file.path, _uiState.value.currentPath) { progress ->
+                        _uiState.value = _uiState.value.copy(operationProgress = progress)
+                    }
                 }
-                _uiState.value = _uiState.value.copy(clipboard = null)
+                _uiState.value = _uiState.value.copy(clipboard = null, operationProgress = null)
                 loadDirectory(_uiState.value.currentPath)
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(error = e.message)
+                _uiState.value = _uiState.value.copy(error = e.message, operationProgress = null)
             }
         }
     }

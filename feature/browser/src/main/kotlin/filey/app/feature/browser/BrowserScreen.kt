@@ -118,50 +118,61 @@ fun BrowserScreen(
             }
         }
     ) { padding ->
-        Column(modifier = Modifier.padding(padding)) {
-            PathBar(
-                path = state.currentPath,
-                onPathClick = { onNavigate(it) }
-            )
-
-            when {
-                state.isLoading -> LoadingIndicator()
-                state.files.isEmpty() -> EmptyState(message = "Bu klasör boş")
-                state.isGridView -> FileGrid(
-                    files = state.files,
-                    onClick = { file ->
-                        when {
-                            file.isDirectory -> onNavigate(file.path)
-                            file.type == FileType.IMAGE -> onOpenImage(file.path)
-                            file.type == FileType.VIDEO -> onOpenVideo(file.path)
-                            file.type == FileType.AUDIO -> onOpenAudio(file.path)
-                            file.type == FileType.ARCHIVE -> onOpenArchive(file.path)
-                            file.type == FileType.TEXT -> onOpenText(file.path)
-                            else -> onOpenText(file.path)
-                        }
-                    },
-                    onLongClick = { index ->
-                        selectedFileIndex = index
-                        showOptionsSheet = true
-                    }
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                PathBar(
+                    path = state.currentPath,
+                    onPathClick = { onNavigate(it) }
                 )
-                else -> FileList(
-                    files = state.files,
-                    onClick = { file ->
-                        when {
-                            file.isDirectory -> onNavigate(file.path)
-                            file.type == FileType.IMAGE -> onOpenImage(file.path)
-                            file.type == FileType.VIDEO -> onOpenVideo(file.path)
-                            file.type == FileType.AUDIO -> onOpenAudio(file.path)
-                            file.type == FileType.ARCHIVE -> onOpenArchive(file.path)
-                            file.type == FileType.TEXT -> onOpenText(file.path)
-                            else -> onOpenText(file.path)
+
+                when {
+                    state.isLoading -> LoadingIndicator()
+                    state.files.isEmpty() -> EmptyState(message = "Bu klasör boş")
+                    state.isGridView -> FileGrid(
+                        files = state.files,
+                        onClick = { file ->
+                            when {
+                                file.isDirectory -> onNavigate(file.path)
+                                file.type == FileType.IMAGE -> onOpenImage(file.path)
+                                file.type == FileType.VIDEO -> onOpenVideo(file.path)
+                                file.type == FileType.AUDIO -> onOpenAudio(file.path)
+                                file.type == FileType.ARCHIVE -> onOpenArchive(file.path)
+                                file.type == FileType.TEXT -> onOpenText(file.path)
+                                else -> onOpenText(file.path)
+                            }
+                        },
+                        onLongClick = { index ->
+                            selectedFileIndex = index
+                            showOptionsSheet = true
                         }
-                    },
-                    onLongClick = { index ->
-                        selectedFileIndex = index
-                        showOptionsSheet = true
-                    }
+                    )
+                    else -> FileList(
+                        files = state.files,
+                        onClick = { file ->
+                            when {
+                                file.isDirectory -> onNavigate(file.path)
+                                file.type == FileType.IMAGE -> onOpenImage(file.path)
+                                file.type == FileType.VIDEO -> onOpenVideo(file.path)
+                                file.type == FileType.AUDIO -> onOpenAudio(file.path)
+                                file.type == FileType.ARCHIVE -> onOpenArchive(file.path)
+                                file.type == FileType.TEXT -> onOpenText(file.path)
+                                else -> onOpenText(file.path)
+                            }
+                        },
+                        onLongClick = { index ->
+                            selectedFileIndex = index
+                            showOptionsSheet = true
+                        }
+                    )
+                }
+            }
+
+            // İlerleme Kartı
+            state.operationProgress?.let { progress ->
+                OperationProgressCard(
+                    fileName = state.clipboard?.file?.name ?: "Dosya",
+                    progress = progress,
+                    modifier = Modifier.align(Alignment.BottomCenter)
                 )
             }
         }

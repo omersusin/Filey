@@ -1,12 +1,14 @@
 package filey.app.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import filey.app.feature.browser.BrowserScreen
+import filey.app.feature.browser.BrowserViewModel
 import filey.app.feature.viewer.ImageViewerScreen
 import filey.app.feature.player.VideoPlayerScreen
 import filey.app.feature.player.AudioPlayerScreen
@@ -31,11 +33,13 @@ fun String.decode(): String = URLDecoder.decode(this, StandardCharsets.UTF_8.toS
 @Composable
 fun NavGraph() {
     val navController = rememberNavController()
+    val browserViewModel: BrowserViewModel = viewModel()
 
     NavHost(navController = navController, startDestination = Routes.BROWSER) {
 
         composable(Routes.BROWSER) {
             BrowserScreen(
+                viewModel = browserViewModel,
                 onNavigate = { path ->
                     navController.navigate("${Routes.BROWSER}/${path.encode()}")
                 },
@@ -64,6 +68,7 @@ fun NavGraph() {
             val path = backStackEntry.arguments?.getString("path")?.decode() ?: "/storage/emulated/0"
             BrowserScreen(
                 initialPath = path,
+                viewModel = browserViewModel,
                 onNavigate = { p ->
                     navController.navigate("${Routes.BROWSER}/${p.encode()}")
                 },
