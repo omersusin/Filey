@@ -24,7 +24,7 @@ class ShizukuFileRepository : FileRepository {
                 if (code != 0 && stdout.isEmpty()) {
                     error("ls failed: ${stderr.joinToString()}")
                 }
-                stdout.drop(1).mapNotNull { parseLsLine(it, path) }
+                stdout.mapNotNull { parseLsLine(it, path) }
                     .sortedWith(
                         compareByDescending<FileModel> { it.isDirectory }
                             .thenBy { it.name.lowercase() }
@@ -158,14 +158,11 @@ class ShizukuFileRepository : FileRepository {
 
     private fun parseLsLine(line: String, parentPath: String): FileModel? {
         if (line.isBlank() || line.startsWith("total")) return null
-        val parts = line.trim().split("\\s+".toRegex(), limit = 9)
-        if (parts.size < 9) return null
+        val parts = line.trim().split("\\s+".toRegex())
+        if (parts.size < 7) return null
 
         val perms = parts[0]
-        val owner = parts[2]
-        val group = parts[3]
-        val size = parts[4].toLongOrNull() ?: 0L
-        val name = parts[8]
+        val name = parts.last()
         if (name == "." || name == "..") return null
 
         val isDir = perms.startsWith('d')
@@ -174,10 +171,19 @@ class ShizukuFileRepository : FileRepository {
         val actualPath = if (parentPath == "/") "/$actualName" else "$parentPath/$actualName"
         val ext = if (isDir) "" else actualName.substringAfterLast('.', "").lowercase()
 
+        val size = parts.getOrNull(4)?.toLongOrNull() ?: 0L
+        val owner = parts.getOrNull(2) ?: "root"
+        val group = parts.getOrNull(3) ?: "root"
+        val lastMod = if (parts.size >= 7) {
+            val dateIdx = parts.size - 3
+            val timeIdx = parts.size - 2
+            parseDateFromLs(parts[dateIdx], parts[timeIdx])
+        } else 0L
+
         return FileModel(
             name = actualName, path = actualPath, isDirectory = isDir,
             size = if (isDir) 0L else size,
-            lastModified = parseDateFromLs(parts[5], parts[6]),
+            lastModified = lastMod,
             isHidden = actualName.startsWith('.'),
             extension = ext,
             mimeType = if (isDir) "" else FileUtils.getMimeType(actualPath),

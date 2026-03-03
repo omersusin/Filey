@@ -53,9 +53,25 @@ object ShizukuManager {
         return try {
             val fullCommand = command.joinToString(" && ")
             val process = Shizuku.newProcess(arrayOf("sh", "-c", fullCommand), null, null)
-            val stdout = process.inputStream.bufferedReader().readLines()
-            val stderr = process.errorStream.bufferedReader().readLines()
+            
+            // Read output in background to prevent deadlock if buffer fills up
+            val stdout = mutableListOf<String>()
+            val stderr = mutableListOf<String>()
+            
+            val outReader = Thread {
+                process.inputStream.bufferedReader().use { stdout.addAll(it.readLines()) }
+            }
+            val errReader = Thread {
+                process.errorStream.bufferedReader().use { stderr.addAll(it.readLines()) }
+            }
+            
+            outReader.start()
+            errReader.start()
+            
             val exitCode = process.waitFor()
+            outReader.join(1000)
+            errReader.join(1000)
+            
             Triple(stdout, stderr, exitCode)
         } catch (e: Exception) {
             Triple(emptyList(), listOf(e.message ?: "Unknown error"), -1)

@@ -16,7 +16,7 @@ class RootFileRepository : FileRepository {
             Shell.enableVerboseLogging = false
             Shell.setDefaultBuilder(
                 Shell.Builder.create()
-                    .setFlags(Shell.FLAG_MOUNT_MASTER or Shell.FLAG_REDIRECT_STDERR)
+                    .setFlags(Shell.FLAG_MOUNT_MASTER)
                     .setTimeout(10)
             )
             return Shell.getShell().isRoot
@@ -35,10 +35,10 @@ class RootFileRepository : FileRepository {
         withContext(Dispatchers.IO) {
             runCatching {
                 val escapedPath = path.shellEscape()
+                // Use -a to show hidden, -l for long format, -e for ISO-like dates (easier to parse)
                 val lines = execOut("ls -la $escapedPath")
 
-                // first line is usually "total ..."
-                lines.drop(1).mapNotNull { parseLsLine(it, path) }
+                lines.mapNotNull { parseLsLine(it, path) }
                     .sortedWith(
                         compareByDescending<FileModel> { it.isDirectory }
                             .thenBy { it.name.lowercase() }
@@ -177,20 +177,27 @@ class RootFileRepository : FileRepository {
     private fun parseLsLine(line: String, parentPath: String): FileModel? {
         if (line.isBlank() || line.startsWith("total")) return null
 
-        val parts = line.trim().split("\\s+".toRegex(), limit = 9)
-        if (parts.size < 9) return null
+        // Support both 8 and 9 column formats
+        // Format A (Toybox): perms links owner group size date time name
+        // Format B (Standard): perms links owner group size month day time name
+        val parts = line.trim().split("\\s+".toRegex())
+        if (parts.size < 7) return null
 
         val perms = parts[0]
-        val owner = parts[2]
-        val group = parts[3]
-        val size = parts[4].toLongOrNull() ?: 0L
-        val name = parts[8]
+        val name = parts.last()
 
         if (name == "." || name == "..") return null
 
+        // Try to find indices by looking for typical patterns
         val isDir = perms.startsWith('d')
         val isLink = perms.startsWith('l')
         val isHidden = name.startsWith('.')
+
+        // Size is usually at index 4 (0-based) in both 8 and 9 column formats
+        // But let's be safer and take the one before the date/name
+        val size = parts.getOrNull(4)?.toLongOrNull() ?: 0L
+        val owner = parts.getOrNull(2) ?: "root"
+        val group = parts.getOrNull(3) ?: "root"
 
         val actualName = if (isLink && name.contains(" -> ")) {
             name.substringBefore(" -> ")
@@ -199,12 +206,19 @@ class RootFileRepository : FileRepository {
         val actualPath = if (parentPath == "/") "/$actualName" else "$parentPath/$actualName"
         val ext = if (isDir) "" else actualName.substringAfterLast('.', "").lowercase()
 
+        // Attempt to parse date from common positions
+        val lastMod = if (parts.size >= 7) {
+            val dateIdx = parts.size - 3
+            val timeIdx = parts.size - 2
+            parseDateFromLs(parts[dateIdx], parts[timeIdx])
+        } else 0L
+
         return FileModel(
             name = actualName,
             path = actualPath,
             isDirectory = isDir,
             size = if (isDir) 0L else size,
-            lastModified = parseDateFromLs(parts[5], parts[6]),
+            lastModified = lastMod,
             isHidden = isHidden,
             extension = ext,
             mimeType = if (isDir) "" else FileUtils.getMimeType(actualPath),
