@@ -22,6 +22,8 @@ class RootManager {
     companion object {
         private const val TAG = "RootManager"
 
+
+         fun init() = Unit
         private val ALLOWED_COMMANDS = setOf(
             "ls", "cp", "mv", "rm", "mkdir", "stat",
             "cat", "touch", "chmod", "find", "du",
