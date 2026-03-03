@@ -12,6 +12,7 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
         maven { url = uri("https://jitpack.io") }
+        maven { url = uri("https://maven.pkg.github.com/nickilous/shizuku-api") }
     }
 }
 
@@ -24,3 +25,4 @@ include(":feature:viewer")
 include(":feature:player")
 include(":feature:editor")
 include(":feature:archive")
+include(":feature:settings")

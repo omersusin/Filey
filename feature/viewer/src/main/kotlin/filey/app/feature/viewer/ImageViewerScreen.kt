@@ -15,41 +15,40 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import filey.app.core.model.FileUtils
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ImageViewerScreen(
-    filePath: String,
-    onBack: () -> Unit,
-    viewModel: ImageViewerViewModel = viewModel()
+    path: String,
+    onBack: () -> Unit
 ) {
-    val state by viewModel.uiState.collectAsStateWithLifecycle()
-
-    LaunchedEffect(filePath) { viewModel.load(filePath) }
-
+    val file = remember { File(path) }
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
+    var showInfo by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(state.fileName, maxLines = 1) },
+                title = { Text(file.name, maxLines = 1) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Geri")
                     }
                 },
                 actions = {
-                    IconButton(onClick = { viewModel.toggleInfo() }) {
+                    IconButton(onClick = { showInfo = !showInfo }) {
                         Icon(Icons.Default.Info, "Bilgi")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black.copy(alpha = 0.7f),
+                    containerColor = Color.Black.copy(alpha = 0.6f),
                     titleContentColor = Color.White,
                     navigationIconContentColor = Color.White,
                     actionIconContentColor = Color.White
@@ -65,14 +64,20 @@ fun ImageViewerScreen(
                 .pointerInput(Unit) {
                     detectTransformGestures { _, pan, zoom, _ ->
                         scale = (scale * zoom).coerceIn(0.5f, 5f)
-                        offset = Offset(offset.x + pan.x, offset.y + pan.y)
+                        offset = Offset(
+                            x = offset.x + pan.x,
+                            y = offset.y + pan.y
+                        )
                     }
                 },
             contentAlignment = Alignment.Center
         ) {
             AsyncImage(
-                model = filePath,
-                contentDescription = state.fileName,
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(file)
+                    .crossfade(true)
+                    .build(),
+                contentDescription = file.name,
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
                     .fillMaxSize()
@@ -84,18 +89,23 @@ fun ImageViewerScreen(
                     )
             )
 
-            if (state.showInfo) {
+            // Info overlay
+            if (showInfo) {
                 Surface(
+                    color = Color.Black.copy(alpha = 0.7f),
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
-                        .fillMaxWidth(),
-                    color = Color.Black.copy(alpha = 0.7f)
+                        .fillMaxWidth()
+                        .padding(16.dp)
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text(state.fileName, color = Color.White, style = MaterialTheme.typography.titleMedium)
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(state.fileSize, color = Color.White.copy(alpha = 0.7f), style = MaterialTheme.typography.bodySmall)
-                        Text(state.filePath, color = Color.White.copy(alpha = 0.5f), style = MaterialTheme.typography.bodySmall)
+                        Text("Ad: ${file.name}", color = Color.White)
+                        Text("Boyut: ${FileUtils.formatSize(file.length())}", color = Color.White)
+                        Text("Yol: ${file.absolutePath}", color = Color.White)
+                        Text(
+                            "Tarih: ${FileUtils.formatDate(file.lastModified())}",
+                            color = Color.White
+                        )
                     }
                 }
             }

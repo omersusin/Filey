@@ -1,52 +1,32 @@
 package filey.app.core.data
 
-
 import filey.app.core.model.FileModel
-import filey.app.core.model.FileResult
-import filey.app.core.model.FileResult.Error
-import filey.app.core.model.PermissionType
-import kotlinx.coroutines.flow.Flow
+import filey.app.core.model.StorageInfo
 
+/**
+ * Single interface for ALL file operations.
+ * Normal / Root / Shizuku implementations all conform to this.
+ */
 interface FileRepository {
-
-    suspend fun listFiles(path: String): FileResult<List<FileModel>>
-
+    suspend fun listFiles(path: String): Result<List<FileModel>>
+    suspend fun createDirectory(path: String, name: String): Result<Unit>
+    suspend fun delete(path: String): Result<Unit>
+    suspend fun delete(paths: List<String>): Result<Unit>
+    suspend fun rename(path: String, newName: String): Result<String>
     suspend fun copy(
         source: String,
         destination: String,
-        onProgress: (FileProgress) -> Unit = {}
-    ): FileResult<Unit>
-
-    suspend fun move(source: String, destination: String): FileResult<Unit>
-
-    suspend fun delete(path: String): FileResult<Unit>
-
-    suspend fun rename(oldPath: String, newName: String): FileResult<String>
-
-    suspend fun createFile(parentPath: String, name: String): FileResult<String>
-
-    suspend fun createDirectory(parentPath: String, name: String): FileResult<String>
-
-    suspend fun getFileInfo(path: String): FileResult<FileModel>
-
-    fun search(rootPath: String, query: String): Flow<FileModel>
-
-    suspend fun calculateSize(path: String): FileResult<Long>
-}
-
-data class FileProgress(
-    val currentFile: String,
-    val currentFileIndex: Int,
-    val totalFiles: Int,
-    val bytesProcessed: Long,
-    val totalBytes: Long
-) {
-    val percentage: Float
-        get() = if (totalBytes > 0) bytesProcessed.toFloat() / totalBytes else 0f
-}
-
-fun Error.toRequiredPermissionOrNull(): PermissionType? = when (this) {
-    is Error.PermissionDenied -> requiredPermission
-    is Error.RootRequired, is Error.RootDenied -> PermissionType.ROOT
-    else -> null
+        onProgress: ((Float) -> Unit)? = null
+    ): Result<Unit>
+    suspend fun move(
+        source: String,
+        destination: String,
+        onProgress: ((Float) -> Unit)? = null
+    ): Result<Unit>
+    suspend fun getFileInfo(path: String): Result<FileModel>
+    suspend fun exists(path: String): Boolean
+    suspend fun getStorageInfo(path: String): Result<StorageInfo>
+    suspend fun readText(path: String): Result<String>
+    suspend fun writeText(path: String, content: String): Result<Unit>
+    suspend fun calculateChecksum(path: String, algorithm: String = "SHA-256"): Result<String>
 }

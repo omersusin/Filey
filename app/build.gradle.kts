@@ -51,6 +51,7 @@ dependencies {
     implementation(project(":feature:player"))
     implementation(project(":feature:editor"))
     implementation(project(":feature:archive"))
+    implementation(project(":feature:settings"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime)
@@ -62,6 +63,12 @@ dependencies {
     implementation(libs.compose.material3)
     implementation(libs.compose.material.icons)
     implementation(libs.navigation.compose)
+    implementation(libs.androidx.datastore)
+    implementation(libs.coil.compose)
+    implementation(libs.libsu.core)
+    implementation(libs.shizuku.api)
+    implementation(libs.shizuku.provider)
+    implementation(libs.kotlinx.coroutines.android)
 
     debugImplementation(libs.compose.ui.tooling)
 }

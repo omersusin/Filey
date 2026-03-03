@@ -1,386 +1,505 @@
 package filey.app.feature.browser
 
-import android.content.Intent
-import android.net.Uri
+import android.Manifest
 import android.os.Build
-import android.provider.Settings
+import android.os.Environment
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.*
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import filey.app.core.model.FileType
-import filey.app.core.ui.components.EmptyState
-import filey.app.core.ui.components.LoadingIndicator
-import filey.app.core.ui.components.PermissionScreen
-import filey.app.core.util.PermissionHelper
+import filey.app.core.model.*
+import filey.app.feature.browser.actions.ActionRegistry
+import filey.app.feature.browser.actions.ActionResult
+import filey.app.feature.browser.actions.OpenWithAction
 import filey.app.feature.browser.components.*
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BrowserScreen(
-    initialPath: String = "/storage/emulated/0",
-    onNavigate: (String) -> Unit = {},
-    onOpenImage: (String) -> Unit = {},
-    onOpenVideo: (String) -> Unit = {},
-    onOpenAudio: (String) -> Unit = {},
-    onOpenText: (String) -> Unit = {},
-    onOpenArchive: (String) -> Unit = {},
-    onBack: (() -> Unit)? = null,
-    viewModel: BrowserViewModel = viewModel()
+    onNavigateToImage: (String) -> Unit,
+    onNavigateToVideo: (String) -> Unit,
+    onNavigateToAudio: (String) -> Unit,
+    onNavigateToEditor: (String) -> Unit,
+    onNavigateToArchive: (String) -> Unit,
+    onNavigateToSettings: () -> Unit,
+    viewModel: BrowserViewModel = viewModel(factory = BrowserViewModel.Factory)
 ) {
     val context = LocalContext.current
-    val state by viewModel.uiState.collectAsStateWithLifecycle()
-    var hasPermission by remember { mutableStateOf(PermissionHelper.hasStoragePermission(context)) }
-    var showSortSheet by remember { mutableStateOf(false) }
-    var showOptionsSheet by remember { mutableStateOf(false) }
-    var selectedFileIndex by remember { mutableIntStateOf(-1) }
-    var showNewFolderDialog by remember { mutableStateOf(false) }
-    var showRenameDialog by remember { mutableStateOf(false) }
-    var showDeleteDialog by remember { mutableStateOf(false) }
-    var showAboutDialog by remember { mutableStateOf(false) }
+    val uiState by viewModel.uiState.collectAsState()
+    val snackbarMessage by viewModel.snackbarEvent.collectAsState()
 
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val actionRegistry = remember { ActionRegistry.createDefault() }
+    val actionCallback = remember(viewModel, context) { viewModel.createActionCallback(context) }
+
+    // ── Permission ──
+    var hasPermission by remember { mutableStateOf(checkStoragePermission()) }
     val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) {
-        hasPermission = PermissionHelper.hasStoragePermission(context)
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { grants ->
+        hasPermission = grants.values.all { it }
+    }
+
+    LaunchedEffect(Unit) {
+        if (!hasPermission) {
+            permissionLauncher.launch(storagePermissions())
+        }
     }
 
     LaunchedEffect(hasPermission) {
-        if (hasPermission) viewModel.loadDirectory(initialPath)
+        if (hasPermission) {
+            viewModel.refreshCurrentDirectory()
+        }
     }
 
-    if (!hasPermission) {
-        PermissionScreen(onRequestPermission = {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
-                    data = Uri.parse("package:${context.packageName}")
-                }
-                permissionLauncher.launch(intent)
-            }
-        })
-        return
+    // Snackbar event
+    LaunchedEffect(snackbarMessage) {
+        snackbarMessage?.let { msg ->
+            snackbarHostState.showSnackbar(msg, duration = SnackbarDuration.Short)
+            viewModel.clearSnackbar()
+        }
     }
+
+    // Error snackbar
+    LaunchedEffect(uiState.error) {
+        uiState.error?.let { err ->
+            snackbarHostState.showSnackbar(
+                message = err,
+                actionLabel = "Kapat",
+                duration = SnackbarDuration.Long
+            )
+            viewModel.clearError()
+        }
+    }
+
+    // Back handling
+    BackHandler {
+        when {
+            uiState.isSearchActive -> viewModel.toggleSearch()
+            uiState.isMultiSelectActive -> viewModel.clearSelection()
+            else -> viewModel.goBack()
+        }
+    }
+
+    // ── Dialog/sheet states ──
+    var showCreateFolderDialog by remember { mutableStateOf(false) }
+    var showSortSheet by remember { mutableStateOf(false) }
+    var showOptionsFor by remember { mutableStateOf<FileModel?>(null) }
+    var showRenameFor by remember { mutableStateOf<FileModel?>(null) }
+    var showDeleteConfirmFor by remember { mutableStateOf<FileModel?>(null) }
+    var showPropertiesFor by remember { mutableStateOf<FileModel?>(null) }
+    var showDeleteSelectedConfirm by remember { mutableStateOf(false) }
+    var showAccessModeSheet by remember { mutableStateOf(false) }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            if (state.isSearching) {
-                SearchBar(
-                    query = state.searchQuery,
-                    onQueryChange = { viewModel.setSearchQuery(it) },
-                    onClose = { viewModel.toggleSearch() }
-                )
-            } else {
-                TopAppBar(
-                    title = {
-                        Text(
-                            text = state.currentPath.substringAfterLast("/").ifEmpty { "/" },
-                            maxLines = 1
-                        )
-                    },
-                    navigationIcon = {
-                        if (onBack != null) {
-                            IconButton(onClick = onBack) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Geri")
-                            }
-                        }
-                    },
-                    actions = {
-                        IconButton(onClick = { showAboutDialog = true }) {
-                            Icon(Icons.Default.Info, "Hakkında")
-                        }
-                        IconButton(onClick = { viewModel.toggleSearch() }) {
-                            Icon(Icons.Default.Search, "Ara")
-                        }
-                        IconButton(onClick = { viewModel.toggleViewMode() }) {
-                            Icon(
-                                if (state.isGridView) Icons.AutoMirrored.Filled.ViewList else Icons.Default.GridView,
-                                "Görünüm"
+            when {
+                uiState.isMultiSelectActive -> {
+                    MultiSelectTopBar(
+                        selectedCount = uiState.selectedFiles.size,
+                        onClose = { viewModel.clearSelection() },
+                        onSelectAll = { viewModel.selectAll() },
+                        onDeleteSelected = { showDeleteSelectedConfirm = true },
+                        onCopySelected = {
+                            viewModel.setClipboard(
+                                uiState.selectedFiles.toList(), isCut = false
                             )
+                            viewModel.clearSelection()
+                            viewModel.showSnackbar("${uiState.selectedFiles.size} öğe panoya kopyalandı")
+                        },
+                        onCutSelected = {
+                            viewModel.setClipboard(
+                                uiState.selectedFiles.toList(), isCut = true
+                            )
+                            viewModel.clearSelection()
+                            viewModel.showSnackbar("${uiState.selectedFiles.size} öğe kesildi")
                         }
-                        IconButton(onClick = { showSortSheet = true }) {
-                            Icon(Icons.AutoMirrored.Filled.Sort, "Sırala")
-                        }
-                        IconButton(onClick = { showNewFolderDialog = true }) {
-                            Icon(Icons.Default.CreateNewFolder, "Yeni Klasör")
-                        }
-                        if (state.clipboard != null) {
-                            IconButton(onClick = { viewModel.paste() }) {
-                                Icon(Icons.Default.ContentPaste, "Yapıştır")
+                    )
+                }
+                uiState.isSearchActive -> {
+                    SearchTopBar(
+                        query = uiState.searchQuery,
+                        onQueryChange = { viewModel.updateSearchQuery(it) },
+                        onClose = { viewModel.toggleSearch() }
+                    )
+                }
+                else -> {
+                    TopAppBar(
+                        title = {
+                            Text(
+                                text = uiState.pathSegments.lastOrNull()?.name ?: "Filey",
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        },
+                        navigationIcon = {
+                            if (uiState.canGoBack ||
+                                uiState.currentPath != BrowserUiState.DEFAULT_PATH
+                            ) {
+                                IconButton(onClick = { viewModel.navigateUp() }) {
+                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Geri")
+                                }
+                            }
+                        },
+                        actions = {
+                            if (uiState.accessMode != AccessMode.NORMAL) {
+                                IconButton(onClick = { showAccessModeSheet = true }) {
+                                    Icon(
+                                        imageVector = when (uiState.accessMode) {
+                                            AccessMode.ROOT -> Icons.Default.Security
+                                            AccessMode.SHIZUKU -> Icons.Default.Shield
+                                            else -> Icons.Default.Lock
+                                        },
+                                        contentDescription = uiState.accessMode.name,
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+
+                            IconButton(onClick = { viewModel.toggleSearch() }) {
+                                Icon(Icons.Default.Search, "Ara")
+                            }
+
+                            IconButton(onClick = {
+                                val newMode = if (uiState.viewMode == ViewMode.LIST)
+                                    ViewMode.GRID else ViewMode.LIST
+                                viewModel.setViewMode(newMode)
+                            }) {
+                                Icon(
+                                    if (uiState.viewMode == ViewMode.LIST) Icons.Default.GridView
+                                    else Icons.AutoMirrored.Filled.ViewList,
+                                    "Görünüm"
+                                )
+                            }
+
+                            IconButton(onClick = { showSortSheet = true }) {
+                                Icon(Icons.Default.Sort, "Sırala")
+                            }
+
+                            IconButton(onClick = { showCreateFolderDialog = true }) {
+                                Icon(Icons.Default.CreateNewFolder, "Yeni Klasör")
+                            }
+
+                            if (uiState.clipboard != null) {
+                                IconButton(onClick = { viewModel.paste() }) {
+                                    Icon(
+                                        Icons.Default.ContentPaste, "Yapıştır",
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+
+                            // Overflow
+                            var expanded by remember { mutableStateOf(false) }
+                            IconButton(onClick = { expanded = true }) {
+                                Icon(Icons.Default.MoreVert, "Daha fazla")
+                            }
+                            DropdownMenu(
+                                expanded = expanded,
+                                onDismissRequest = { expanded = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            if (uiState.showHiddenFiles) "Gizlileri gizle"
+                                            else "Gizlileri göster"
+                                        )
+                                    },
+                                    leadingIcon = {
+                                        Icon(
+                                            if (uiState.showHiddenFiles) Icons.Default.VisibilityOff
+                                            else Icons.Default.Visibility,
+                                            null
+                                        )
+                                    },
+                                    onClick = {
+                                        viewModel.toggleHiddenFiles()
+                                        expanded = false
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Erişim modu") },
+                                    leadingIcon = { Icon(Icons.Default.Security, null) },
+                                    onClick = {
+                                        showAccessModeSheet = true
+                                        expanded = false
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Yenile") },
+                                    leadingIcon = { Icon(Icons.Default.Refresh, null) },
+                                    onClick = {
+                                        viewModel.refreshCurrentDirectory()
+                                        expanded = false
+                                    }
+                                )
+                                DropdownMenuItem(
+                                    text = { Text("Ayarlar") },
+                                    leadingIcon = { Icon(Icons.Default.Settings, null) },
+                                    onClick = {
+                                        expanded = false
+                                        onNavigateToSettings()
+                                    }
+                                )
                             }
                         }
-                    }
-                )
+                    )
+                }
             }
         }
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            Column(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            // PathBar
+            if (!uiState.isSearchActive) {
                 PathBar(
-                    path = state.currentPath,
-                    onPathClick = { onNavigate(it) }
+                    segments = uiState.pathSegments,
+                    onSegmentClick = { segment -> viewModel.navigateTo(segment.fullPath) }
                 )
+            }
 
-                when {
-                    state.isLoading -> LoadingIndicator()
-                    state.files.isEmpty() -> EmptyState(message = "Bu klasör boş")
-                    state.isGridView -> FileGrid(
-                        files = state.files,
-                        onClick = { file ->
-                            when {
-                                file.isDirectory -> onNavigate(file.path)
-                                file.type == FileType.IMAGE -> onOpenImage(file.path)
-                                file.type == FileType.VIDEO -> onOpenVideo(file.path)
-                                file.type == FileType.AUDIO -> onOpenAudio(file.path)
-                                file.type == FileType.ARCHIVE -> onOpenArchive(file.path)
-                                file.type == FileType.TEXT -> onOpenText(file.path)
-                                else -> {
-                                    val intent = Intent(Intent.ACTION_VIEW).apply {
-                                        val uri = androidx.core.content.FileProvider.getUriForFile(
-                                            context,
-                                            "${context.packageName}.fileprovider",
-                                            java.io.File(file.path)
-                                        )
-                                        setDataAndType(uri, filey.app.core.util.FileUtils.getMimeType(file.path))
-                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                    }
-                                    try {
-                                        context.startActivity(intent)
-                                    } catch (_: Exception) {
-                                        onOpenText(file.path)
-                                    }
-                                }
+            // Operation progress
+            AnimatedVisibility(visible = uiState.operationMessage != null) {
+                Column {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    uiState.operationMessage?.let {
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+            }
 
-                            }
-                        },
-                        onLongClick = { index ->
-                            selectedFileIndex = index
-                            showOptionsSheet = true
-                        }
+            // Content
+            when {
+                !hasPermission -> {
+                    PermissionRequiredContent(
+                        onRequestPermission = { permissionLauncher.launch(storagePermissions()) }
                     )
-                    else -> FileList(
-                        files = state.files,
-                        onClick = { file ->
-                            when {
-                                file.isDirectory -> onNavigate(file.path)
-                                file.type == FileType.IMAGE -> onOpenImage(file.path)
-                                file.type == FileType.VIDEO -> onOpenVideo(file.path)
-                                file.type == FileType.AUDIO -> onOpenAudio(file.path)
-                                file.type == FileType.ARCHIVE -> onOpenArchive(file.path)
-                                file.type == FileType.TEXT -> onOpenText(file.path)
-                                else -> {
-                                    val intent = Intent(Intent.ACTION_VIEW).apply {
-                                        val uri = androidx.core.content.FileProvider.getUriForFile(
-                                            context,
-                                            "${context.packageName}.fileprovider",
-                                            java.io.File(file.path)
-                                        )
-                                        setDataAndType(uri, filey.app.core.util.FileUtils.getMimeType(file.path))
-                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                    }
-                                    try {
-                                        context.startActivity(intent)
-                                    } catch (_: Exception) {
-                                        onOpenText(file.path)
-                                    }
-                                }
-
+                }
+                uiState.isLoading -> {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                }
+                uiState.error != null && uiState.files.isEmpty() -> {
+                    ErrorContent(
+                        message = uiState.error!!,
+                        onRetry = { viewModel.refreshCurrentDirectory() }
+                    )
+                }
+                uiState.displayFiles.isEmpty() -> {
+                    EmptyContent(isSearchActive = uiState.isSearchActive)
+                }
+                else -> {
+                    FileContent(
+                        files = uiState.displayFiles,
+                        viewMode = uiState.viewMode,
+                        selectedFiles = uiState.selectedFiles,
+                        isMultiSelectActive = uiState.isMultiSelectActive,
+                        onFileClick = { file ->
+                            if (uiState.isMultiSelectActive) {
+                                viewModel.toggleFileSelection(file.path)
+                            } else {
+                                handleFileClick(
+                                    file = file,
+                                    viewModel = viewModel,
+                                    onImage = onNavigateToImage,
+                                    onVideo = onNavigateToVideo,
+                                    onAudio = onNavigateToAudio,
+                                    onText = onNavigateToEditor,
+                                    onArchive = onNavigateToArchive,
+                                    context = context,
+                                    callback = actionCallback
+                                )
                             }
                         },
-                        onLongClick = { index ->
-                            selectedFileIndex = index
-                            showOptionsSheet = true
+                        onFileLongClick = { file ->
+                            if (uiState.isMultiSelectActive) {
+                                viewModel.toggleFileSelection(file.path)
+                            } else {
+                                showOptionsFor = file
+                            }
                         }
                     )
                 }
             }
-
-            // İlerleme Kartı
-            state.operationProgress?.let { progress ->
-                OperationProgressCard(
-                    fileName = state.clipboard?.file?.name ?: "Dosya",
-                    progress = progress,
-                    modifier = Modifier.align(Alignment.BottomCenter)
-                )
-            }
         }
+    }
+
+    // ══════════ DIALOGS & SHEETS ══════════
+
+    if (showCreateFolderDialog) {
+        CreateFolderDialog(
+            onDismiss = { showCreateFolderDialog = false },
+            onCreate = { name ->
+                viewModel.createFolder(name)
+                showCreateFolderDialog = false
+            }
+        )
     }
 
     if (showSortSheet) {
         SortSheet(
-            currentSort = state.sortOption,
-            showHidden = state.showHidden,
-            onSortSelected = { viewModel.setSortOption(it) },
-            onToggleHidden = { viewModel.toggleShowHidden() },
+            currentSort = uiState.sortOption,
+            onSortSelected = { option ->
+                viewModel.setSortOption(option)
+                showSortSheet = false
+            },
             onDismiss = { showSortSheet = false }
         )
     }
 
-    if (showOptionsSheet && selectedFileIndex in state.files.indices) {
-        val file = state.files[selectedFileIndex]
+    showOptionsFor?.let { file ->
         FileOptionsSheet(
             file = file,
-            onCopy = { viewModel.copyFile(file); showOptionsSheet = false },
-            onCut = { viewModel.cutFile(file); showOptionsSheet = false },
-            onRename = { showOptionsSheet = false; showRenameDialog = true },
-            onDelete = { showOptionsSheet = false; showDeleteDialog = true },
-            onDismiss = { showOptionsSheet = false }
-        )
-    }
-
-    if (showNewFolderDialog) {
-        var name by remember { mutableStateOf("") }
-        AlertDialog(
-            onDismissRequest = { showNewFolderDialog = false },
-            title = { Text("Yeni Klasör") },
-            text = {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Klasör adı") },
-                    singleLine = true
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    if (name.isNotBlank()) {
-                        viewModel.createFolder(name)
-                        showNewFolderDialog = false
+            actions = actionRegistry.getActionsForFile(file),
+            callback = actionCallback,
+            onResult = { result ->
+                showOptionsFor = null
+                when (result) {
+                    is ActionResult.RequestDelete -> {
+                        showDeleteConfirmFor = file
                     }
-                }) { Text("Oluştur") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showNewFolderDialog = false }) { Text("İptal") }
-            }
-        )
-    }
-
-    if (showRenameDialog && selectedFileIndex in state.files.indices) {
-        val file = state.files[selectedFileIndex]
-        var newName by remember { mutableStateOf(file.name) }
-        AlertDialog(
-            onDismissRequest = { showRenameDialog = false },
-            title = { Text("Yeniden Adlandır") },
-            text = {
-                OutlinedTextField(
-                    value = newName,
-                    onValueChange = { newName = it },
-                    label = { Text("Yeni ad") },
-                    singleLine = true
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    if (newName.isNotBlank()) {
-                        viewModel.renameFile(file, newName)
-                        showRenameDialog = false
+                    is ActionResult.RequestRename -> {
+                        showRenameFor = file
                     }
-                }) { Text("Kaydet") }
+                    is ActionResult.RequestProperties -> {
+                        showPropertiesFor = file
+                    }
+                    is ActionResult.Error -> {
+                        viewModel.showSnackbar(result.message)
+                    }
+                    is ActionResult.Success -> { /* handled by callback */ }
+                    ActionResult.Dismissed -> { /* noop */ }
+                }
             },
-            dismissButton = {
-                TextButton(onClick = { showRenameDialog = false }) { Text("İptal") }
+            onDismiss = { showOptionsFor = null }
+        )
+    }
+
+    showRenameFor?.let { file ->
+        RenameDialog(
+            currentName = file.name,
+            onDismiss = { showRenameFor = null },
+            onRename = { newName ->
+                viewModel.renameFile(file.path, newName)
+                showRenameFor = null
             }
         )
     }
 
-    if (showDeleteDialog && selectedFileIndex in state.files.indices) {
-        val file = state.files[selectedFileIndex]
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Sil") },
-            text = { Text("${file.name} silinsin mi?") },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.deleteFile(file)
-                    showDeleteDialog = false
-                }) { Text("Sil") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) { Text("İptal") }
+    showDeleteConfirmFor?.let { file ->
+        DeleteConfirmDialog(
+            fileName = file.name,
+            onDismiss = { showDeleteConfirmFor = null },
+            onConfirm = {
+                viewModel.deleteFile(file.path)
+                showDeleteConfirmFor = null
             }
         )
     }
 
-    if (showAboutDialog) {
-        AlertDialog(
-            onDismissRequest = { showAboutDialog = false },
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Default.Info,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(32.dp)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text("Filey Hakkında")
-                }
-            },
-            text = {
-                Column {
-                    Text(
-                        "Filey - Modern Dosya Yöneticisi",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text("Sürüm: 1.0.0", style = MaterialTheme.typography.bodySmall)
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        "Jetpack Compose ve Material 3 ile geliştirilmiş, Root desteğine sahip hızlı bir dosya yöneticisi.",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        "Geliştirici: Ömer Süsin",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showAboutDialog = false }) {
-                    Text("Kapat")
-                }
+    if (showDeleteSelectedConfirm) {
+        DeleteConfirmDialog(
+            fileName = "${uiState.selectedFiles.size} öğe",
+            onDismiss = { showDeleteSelectedConfirm = false },
+            onConfirm = {
+                viewModel.deleteSelected()
+                showDeleteSelectedConfirm = false
             }
+        )
+    }
+
+    showPropertiesFor?.let { file ->
+        PropertiesSheet(
+            file = file,
+            onDismiss = { showPropertiesFor = null }
+        )
+    }
+
+    if (showAccessModeSheet) {
+        AccessModeSheet(
+            currentMode = uiState.accessMode,
+            context = context,
+            onModeSelected = { mode ->
+                viewModel.setAccessMode(mode)
+                showAccessModeSheet = false
+            },
+            onDismiss = { showAccessModeSheet = false }
         )
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SearchBar(
-    query: String,
-    onQueryChange: (String) -> Unit,
-    onClose: () -> Unit
+// ══════════ HELPERS ══════════
+
+private fun handleFileClick(
+    file: FileModel,
+    viewModel: BrowserViewModel,
+    onImage: (String) -> Unit,
+    onVideo: (String) -> Unit,
+    onAudio: (String) -> Unit,
+    onText: (String) -> Unit,
+    onArchive: (String) -> Unit,
+    context: android.content.Context,
+    callback: filey.app.feature.browser.actions.FileActionCallback
 ) {
-    TopAppBar(
-        title = {
-            OutlinedTextField(
-                value = query,
-                onValueChange = onQueryChange,
-                placeholder = { Text("Dosya ara...") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary
-                )
-            )
-        },
-        navigationIcon = {
-            IconButton(onClick = onClose) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Kapat")
+    if (file.isDirectory) {
+        viewModel.navigateTo(file.path)
+        return
+    }
+    when (FileUtils.getFileType(file.path, false)) {
+        FileType.IMAGE -> onImage(file.path)
+        FileType.VIDEO -> onVideo(file.path)
+        FileType.AUDIO -> onAudio(file.path)
+        FileType.TEXT -> onText(file.path)
+        FileType.ARCHIVE -> onArchive(file.path)
+        else -> {
+            kotlinx.coroutines.MainScope().launch {
+                OpenWithAction().execute(context, file, callback)
             }
         }
-    )
+    }
+}
+
+private fun checkStoragePermission(): Boolean {
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        Environment.isExternalStorageManager()
+    } else true
+}
+
+private fun storagePermissions(): Array<String> {
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        arrayOf(
+            Manifest.permission.READ_MEDIA_IMAGES,
+            Manifest.permission.READ_MEDIA_VIDEO,
+            Manifest.permission.READ_MEDIA_AUDIO
+        )
+    } else {
+        arrayOf(
+            Manifest.permission.READ_EXTERNAL_STORAGE,
+            Manifest.permission.WRITE_EXTERNAL_STORAGE
+        )
+    }
 }

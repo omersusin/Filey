@@ -1,51 +1,63 @@
 package filey.app.feature.editor
 
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Undo
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
-import filey.app.core.ui.components.LoadingIndicator
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditorScreen(
-    filePath: String,
+    path: String,
     onBack: () -> Unit,
-    viewModel: EditorViewModel = viewModel()
+    viewModel: EditorViewModel = viewModel(factory = EditorViewModel.Factory)
 ) {
-    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val uiState by viewModel.uiState.collectAsState()
+    val snackbarHostState = remember { SnackbarHostState() }
 
-    LaunchedEffect(filePath) { viewModel.loadFile(filePath) }
+    LaunchedEffect(path) {
+        viewModel.loadFile(path)
+    }
+
+    LaunchedEffect(uiState.error) {
+        uiState.error?.let { err ->
+            snackbarHostState.showSnackbar(err)
+            viewModel.clearError()
+        }
+    }
+
+    LaunchedEffect(uiState.saveSuccess) {
+        if (uiState.saveSuccess) {
+            snackbarHostState.showSnackbar("Kaydedildi ✓")
+        }
+    }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
                 title = {
                     Column {
-                        Text(state.fileName, maxLines = 1, style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            text = if (state.isModified) "Değiştirildi" else "Kaydedildi",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = if (state.isModified)
-                                MaterialTheme.colorScheme.error
-                            else
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Text(uiState.fileName, maxLines = 1)
+                        if (uiState.hasChanges) {
+                            Text(
+                                "• Değişiklik var",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
                 },
                 navigationIcon = {
@@ -54,57 +66,71 @@ fun EditorScreen(
                     }
                 },
                 actions = {
-                    IconButton(
-                        onClick = { viewModel.saveFile() },
-                        enabled = state.isModified
-                    ) {
-                        Icon(Icons.Default.Save, "Kaydet")
+                    if (uiState.isSaving) {
+                        CircularProgressIndicator(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .padding(end = 12.dp),
+                            strokeWidth = 2.dp
+                        )
+                    } else {
+                        IconButton(
+                            onClick = { viewModel.save() },
+                            enabled = uiState.hasChanges
+                        ) {
+                            Icon(
+                                Icons.Default.Save, "Kaydet",
+                                tint = if (uiState.hasChanges)
+                                    MaterialTheme.colorScheme.primary
+                                else
+                                    MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                            )
+                        }
                     }
                 }
             )
-        },
-        bottomBar = {
-            Surface(
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                tonalElevation = 2.dp
-            ) {
-                Row(
+        }
+    ) { padding ->
+        when {
+            uiState.isLoading -> {
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                        .fillMaxSize()
+                        .padding(padding),
+                    contentAlignment = Alignment.Center
+                ) {
+                    CircularProgressIndicator()
+                }
+            }
+            uiState.error != null && uiState.content.isEmpty() -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding),
+                    contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Satır: ${state.lineCount}",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                    Text(
-                        text = "Karakter: ${state.charCount}",
-                        style = MaterialTheme.typography.bodySmall
+                        text = uiState.error ?: "Bilinmeyen hata",
+                        color = MaterialTheme.colorScheme.error
                     )
                 }
             }
-        }
-    ) { padding ->
-        if (state.isLoading) {
-            LoadingIndicator()
-        } else {
-            BasicTextField(
-                value = state.content,
-                onValueChange = { viewModel.updateContent(it) },
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(horizontal = 12.dp, vertical = 8.dp)
-                    .verticalScroll(rememberScrollState())
-                    .horizontalScroll(rememberScrollState()),
-                textStyle = TextStyle(
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onSurface
-                ),
-                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary)
-            )
+            else -> {
+                BasicTextField(
+                    value = uiState.content,
+                    onValueChange = { viewModel.updateContent(it) },
+                    textStyle = TextStyle(
+                        fontFamily = FontFamily.Monospace,
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurface
+                    ),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                        .verticalScroll(rememberScrollState())
+                )
+            }
         }
     }
 }

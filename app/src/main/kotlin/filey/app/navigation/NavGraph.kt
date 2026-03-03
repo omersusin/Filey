@@ -1,134 +1,113 @@
 package filey.app.navigation
 
+import android.net.Uri
 import androidx.compose.runtime.Composable
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
-import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
-import filey.app.feature.browser.BrowserScreen
-import filey.app.feature.browser.BrowserViewModel
-import filey.app.feature.viewer.ImageViewerScreen
-import filey.app.feature.player.VideoPlayerScreen
-import filey.app.feature.player.AudioPlayerScreen
-import filey.app.feature.editor.EditorScreen
 import filey.app.feature.archive.ArchiveScreen
-import java.net.URLDecoder
-import java.net.URLEncoder
-import java.nio.charset.StandardCharsets
-
-object Routes {
-    const val BROWSER = "browser"
-    const val IMAGE_VIEWER = "image_viewer"
-    const val VIDEO_PLAYER = "video_player"
-    const val AUDIO_PLAYER = "audio_player"
-    const val EDITOR = "editor"
-    const val ARCHIVE = "archive"
-}
-
-fun String.encode(): String = URLEncoder.encode(this, StandardCharsets.UTF_8.toString())
-fun String.decode(): String = URLDecoder.decode(this, StandardCharsets.UTF_8.toString())
+import filey.app.feature.browser.BrowserScreen
+import filey.app.feature.editor.EditorScreen
+import filey.app.feature.player.AudioPlayerScreen
+import filey.app.feature.player.VideoPlayerScreen
+import filey.app.feature.viewer.ImageViewerScreen
+import filey.app.feature.settings.SettingsScreen
 
 @Composable
-fun NavGraph() {
-    val navController = rememberNavController()
-    val browserViewModel: BrowserViewModel = viewModel()
-
-    NavHost(navController = navController, startDestination = Routes.BROWSER) {
-
-        composable(Routes.BROWSER) {
+fun NavGraph(navController: NavHostController) {
+    NavHost(
+        navController = navController,
+        startDestination = "browser"
+    ) {
+        // ── Browser ──
+        composable("browser") {
             BrowserScreen(
-                viewModel = browserViewModel,
-                onNavigate = { path ->
-                    navController.navigate("${Routes.BROWSER}/${path.encode()}")
+                onNavigateToImage = { path ->
+                    navController.navigate("image_viewer/${Uri.encode(path)}")
                 },
-                onOpenImage = { path ->
-                    navController.navigate("${Routes.IMAGE_VIEWER}/${path.encode()}")
+                onNavigateToVideo = { path ->
+                    navController.navigate("video_player/${Uri.encode(path)}")
                 },
-                onOpenVideo = { path ->
-                    navController.navigate("${Routes.VIDEO_PLAYER}/${path.encode()}")
+                onNavigateToAudio = { path ->
+                    navController.navigate("audio_player/${Uri.encode(path)}")
                 },
-                onOpenAudio = { path ->
-                    navController.navigate("${Routes.AUDIO_PLAYER}/${path.encode()}")
+                onNavigateToEditor = { path ->
+                    navController.navigate("editor/${Uri.encode(path)}")
                 },
-                onOpenText = { path ->
-                    navController.navigate("${Routes.EDITOR}/${path.encode()}")
+                onNavigateToArchive = { path ->
+                    navController.navigate("archive/${Uri.encode(path)}")
                 },
-                onOpenArchive = { path ->
-                    navController.navigate("${Routes.ARCHIVE}/${path.encode()}")
+                onNavigateToSettings = {
+                    navController.navigate("settings")
                 }
             )
         }
 
+        // ── Image Viewer ──
         composable(
-            route = "${Routes.BROWSER}/{path}",
+            route = "image_viewer/{path}",
             arguments = listOf(navArgument("path") { type = NavType.StringType })
         ) { backStackEntry ->
-            val path = backStackEntry.arguments?.getString("path")?.decode() ?: "/storage/emulated/0"
-            BrowserScreen(
-                initialPath = path,
-                viewModel = browserViewModel,
-                onNavigate = { p ->
-                    navController.navigate("${Routes.BROWSER}/${p.encode()}")
-                },
-                onOpenImage = { p ->
-                    navController.navigate("${Routes.IMAGE_VIEWER}/${p.encode()}")
-                },
-                onOpenVideo = { p ->
-                    navController.navigate("${Routes.VIDEO_PLAYER}/${p.encode()}")
-                },
-                onOpenAudio = { p ->
-                    navController.navigate("${Routes.AUDIO_PLAYER}/${p.encode()}")
-                },
-                onOpenText = { p ->
-                    navController.navigate("${Routes.EDITOR}/${p.encode()}")
-                },
-                onOpenArchive = { p ->
-                    navController.navigate("${Routes.ARCHIVE}/${p.encode()}")
-                },
+            val path = Uri.decode(backStackEntry.arguments?.getString("path") ?: "")
+            ImageViewerScreen(
+                path = path,
                 onBack = { navController.popBackStack() }
             )
         }
 
+        // ── Video Player ──
         composable(
-            route = "${Routes.IMAGE_VIEWER}/{path}",
+            route = "video_player/{path}",
             arguments = listOf(navArgument("path") { type = NavType.StringType })
         ) { backStackEntry ->
-            val path = backStackEntry.arguments?.getString("path")?.decode() ?: ""
-            ImageViewerScreen(filePath = path, onBack = { navController.popBackStack() })
+            val path = Uri.decode(backStackEntry.arguments?.getString("path") ?: "")
+            VideoPlayerScreen(
+                path = path,
+                onBack = { navController.popBackStack() }
+            )
         }
 
+        // ── Audio Player ──
         composable(
-            route = "${Routes.VIDEO_PLAYER}/{path}",
+            route = "audio_player/{path}",
             arguments = listOf(navArgument("path") { type = NavType.StringType })
         ) { backStackEntry ->
-            val path = backStackEntry.arguments?.getString("path")?.decode() ?: ""
-            VideoPlayerScreen(filePath = path, onBack = { navController.popBackStack() })
+            val path = Uri.decode(backStackEntry.arguments?.getString("path") ?: "")
+            AudioPlayerScreen(
+                path = path,
+                onBack = { navController.popBackStack() }
+            )
         }
 
+        // ── Text Editor ──
         composable(
-            route = "${Routes.AUDIO_PLAYER}/{path}",
+            route = "editor/{path}",
             arguments = listOf(navArgument("path") { type = NavType.StringType })
         ) { backStackEntry ->
-            val path = backStackEntry.arguments?.getString("path")?.decode() ?: ""
-            AudioPlayerScreen(filePath = path, onBack = { navController.popBackStack() })
+            val path = Uri.decode(backStackEntry.arguments?.getString("path") ?: "")
+            EditorScreen(
+                path = path,
+                onBack = { navController.popBackStack() }
+            )
         }
 
+        // ── Archive ──
         composable(
-            route = "${Routes.EDITOR}/{path}",
+            route = "archive/{path}",
             arguments = listOf(navArgument("path") { type = NavType.StringType })
         ) { backStackEntry ->
-            val path = backStackEntry.arguments?.getString("path")?.decode() ?: ""
-            EditorScreen(filePath = path, onBack = { navController.popBackStack() })
+            val path = Uri.decode(backStackEntry.arguments?.getString("path") ?: "")
+            ArchiveScreen(
+                path = path,
+                onBack = { navController.popBackStack() }
+            )
         }
 
-        composable(
-            route = "${Routes.ARCHIVE}/{path}",
-            arguments = listOf(navArgument("path") { type = NavType.StringType })
-        ) { backStackEntry ->
-            val path = backStackEntry.arguments?.getString("path")?.decode() ?: ""
-            ArchiveScreen(filePath = path, onBack = { navController.popBackStack() })
+        // ── Settings ──
+        composable("settings") {
+            SettingsScreen(onBack = { navController.popBackStack() })
         }
     }
 }

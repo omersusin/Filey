@@ -6,24 +6,25 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.NavigateNext
-import androidx.compose.material.icons.filled.Home
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import filey.app.core.model.PathSegment
 
 @Composable
 fun PathBar(
-    path: String,
-    onPathClick: (String) -> Unit,
+    segments: List<PathSegment>,
+    onSegmentClick: (PathSegment) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
-    val parts = path.split("/").filter { it.isNotEmpty() }
 
-    LaunchedEffect(path) {
+    // Auto-scroll to end when segments change
+    LaunchedEffect(segments) {
         scrollState.animateScrollTo(scrollState.maxValue)
     }
 
@@ -37,32 +38,26 @@ fun PathBar(
                 .padding(horizontal = 8.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = Icons.Default.Home,
-                contentDescription = "Kök",
-                modifier = Modifier
-                    .size(20.dp)
-                    .clickable { onPathClick("/storage/emulated/0") },
-                tint = MaterialTheme.colorScheme.primary
-            )
+            segments.forEachIndexed { index, segment ->
+                if (index > 0) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.NavigateNext,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
 
-            parts.forEachIndexed { index, part ->
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.NavigateNext,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                val fullPath = "/" + parts.take(index + 1).joinToString("/")
+                val isLast = index == segments.lastIndex
                 Text(
-                    text = part,
+                    text = segment.name,
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (index == parts.lastIndex)
-                        MaterialTheme.colorScheme.primary
-                    else
-                        MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.clickable { onPathClick(fullPath) }
+                    fontWeight = if (isLast) FontWeight.Bold else FontWeight.Normal,
+                    color = if (isLast) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier
+                        .clickable { onSegmentClick(segment) }
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
                 )
             }
         }
