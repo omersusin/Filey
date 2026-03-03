@@ -1,4 +1,5 @@
 -keepattributes *Annotation*
 -keep class filey.app.** { *; }
+-dontwarn org.slf4j.impl.StaticLoggerBinder
 -dontwarn org.apache.commons.compress.**
 -dontwarn com.github.junrar.**
