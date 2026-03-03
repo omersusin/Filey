@@ -92,6 +92,7 @@ class RootFileRepository : FileRepository {
             val result = exec("cp -rf ${source.shellEscape()} ${destination.shellEscape()}/")
             if (!result.isSuccess) error("cp failed: ${result.err.joinToString()}")
             onProgress?.invoke(1f)
+            Unit
         }
     }
 
@@ -104,6 +105,7 @@ class RootFileRepository : FileRepository {
             val result = exec("mv ${source.shellEscape()} ${destination.shellEscape()}/")
             if (!result.isSuccess) error("mv failed: ${result.err.joinToString()}")
             onProgress?.invoke(1f)
+            Unit
         }
     }
 

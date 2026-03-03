@@ -77,6 +77,7 @@ class ShizukuFileRepository : FileRepository {
             val (_, stderr, code) = exec("cp -rf ${source.shellEscape()} ${destination.shellEscape()}/")
             if (code != 0) error("cp failed: ${stderr.joinToString()}")
             onProgress?.invoke(1f)
+            Unit
         }
     }
 
@@ -89,6 +90,7 @@ class ShizukuFileRepository : FileRepository {
             val (_, stderr, code) = exec("mv ${source.shellEscape()} ${destination.shellEscape()}/")
             if (code != 0) error("mv failed: ${stderr.joinToString()}")
             onProgress?.invoke(1f)
+            Unit
         }
     }
 
