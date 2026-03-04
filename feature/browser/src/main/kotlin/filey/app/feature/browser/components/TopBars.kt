@@ -13,6 +13,8 @@ import androidx.compose.ui.Modifier
 fun SearchTopBar(
     query: String,
     onQueryChange: (String) -> Unit,
+    isDeepSearch: Boolean,
+    onDeepSearchToggle: () -> Unit,
     onClose: () -> Unit
 ) {
     TopAppBar(
@@ -20,11 +22,13 @@ fun SearchTopBar(
             TextField(
                 value = query,
                 onValueChange = onQueryChange,
-                placeholder = { Text("Dosya ara…") },
+                placeholder = { Text(if (isDeepSearch) "Derin ara…" else "Klasörde ara…") },
                 singleLine = true,
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = MaterialTheme.colorScheme.surface,
-                    unfocusedContainerColor = MaterialTheme.colorScheme.surface
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+                    focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+                    unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent
                 ),
                 modifier = Modifier.fillMaxWidth()
             )
@@ -32,6 +36,20 @@ fun SearchTopBar(
         navigationIcon = {
             IconButton(onClick = onClose) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, "Aramayı kapat")
+            }
+        },
+        actions = {
+            IconButton(onClick = onDeepSearchToggle) {
+                Icon(
+                    if (isDeepSearch) Icons.Default.FilterList else Icons.Default.FilterListOff,
+                    contentDescription = if (isDeepSearch) "Klasör aramasına geç" else "Derin aramaya geç",
+                    tint = if (isDeepSearch) MaterialTheme.colorScheme.primary else LocalContentColor.current
+                )
+            }
+            if (query.isNotEmpty()) {
+                IconButton(onClick = { onQueryChange("") }) {
+                    Icon(Icons.Default.Clear, "Temizle")
+                }
             }
         }
     )

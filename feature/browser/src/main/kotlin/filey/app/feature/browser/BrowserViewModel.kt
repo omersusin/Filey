@@ -62,18 +62,29 @@ class BrowserViewModel(
                 _uiState.update { it.copy(favorites = favs) }
             }
         }
+        viewModelScope.launch {
+            preferences.recentsFlow.collect { recs ->
+                _uiState.update { it.copy(recents = recs) }
+            }
+        }
 
         // Initial load
         loadDirectory(BrowserUiState.DEFAULT_PATH)
     }
 
     // ══════════════════════════════════════════════════════════
-    // FAVORITES
+    // FAVORITES & RECENTS
     // ══════════════════════════════════════════════════════════
 
     fun toggleFavorite(path: String) {
         viewModelScope.launch {
             preferences.toggleFavorite(path)
+        }
+    }
+
+    fun addToRecents(path: String) {
+        viewModelScope.launch {
+            preferences.addRecent(path)
         }
     }
 
@@ -142,8 +153,14 @@ class BrowserViewModel(
             val result = repository.listFiles(path)
             result.fold(
                 onSuccess = { files ->
+                    val storageResult = repository.getStorageInfo(path)
                     _uiState.update {
-                        it.copy(isLoading = false, files = files, error = null)
+                        it.copy(
+                            isLoading = false,
+                            files = files,
+                            storageInfo = storageResult.getOrNull(),
+                            error = null
+                        )
                     }
                 },
                 onFailure = { error ->
@@ -171,15 +188,42 @@ class BrowserViewModel(
     fun toggleSearch() {
         _uiState.update {
             if (it.isSearchActive) {
-                it.copy(isSearchActive = false, searchQuery = "")
+                it.copy(isSearchActive = false, searchQuery = "", isDeepSearch = false, searchResults = emptyList())
             } else {
                 it.copy(isSearchActive = true)
             }
         }
     }
 
+    fun toggleDeepSearch() {
+        _uiState.update { it.copy(isDeepSearch = !it.isDeepSearch) }
+        val currentQuery = _uiState.value.searchQuery
+        if (currentQuery.isNotBlank()) {
+            performDeepSearch(currentQuery)
+        }
+    }
+
     fun updateSearchQuery(query: String) {
         _uiState.update { it.copy(searchQuery = query) }
+        if (_uiState.value.isDeepSearch && query.isNotBlank()) {
+            performDeepSearch(query)
+        }
+    }
+
+    private fun performDeepSearch(query: String) {
+        if (query.length < 2) return // Don't search for very short strings
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            val result = repository.searchFiles(_uiState.value.currentPath, query)
+            result.fold(
+                onSuccess = { results ->
+                    _uiState.update { it.copy(isLoading = false, searchResults = results) }
+                },
+                onFailure = { error ->
+                    _uiState.update { it.copy(isLoading = false, error = error.message) }
+                }
+            )
+        }
     }
 
     // ══════════════════════════════════════════════════════════

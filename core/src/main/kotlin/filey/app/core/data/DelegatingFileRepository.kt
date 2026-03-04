@@ -40,4 +40,6 @@ class DelegatingFileRepository(
     override suspend fun writeText(path: String, content: String) = current().writeText(path, content)
     override suspend fun calculateChecksum(path: String, algorithm: String) =
         current().calculateChecksum(path, algorithm)
+    override suspend fun searchFiles(rootPath: String, query: String) =
+        current().searchFiles(rootPath, query)
 }

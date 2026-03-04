@@ -11,6 +11,8 @@ data class BrowserUiState(
     // Search
     val searchQuery: String = "",
     val isSearchActive: Boolean = false,
+    val isDeepSearch: Boolean = false,
+    val searchResults: List<FileModel> = emptyList(),
 
     // Display
     val viewMode: ViewMode = ViewMode.LIST,
@@ -35,12 +37,22 @@ data class BrowserUiState(
     // Favorites
     val favorites: Set<String> = emptySet(),
 
+    // Recents
+    val recents: List<String> = emptyList(),
+
+    // Storage info
+    val storageInfo: StorageInfo? = null,
+
     // Operation progress
     val operationMessage: String? = null
 ) {
     /** Files after filtering (search + hidden) and sorting */
     val displayFiles: List<FileModel>
         get() {
+            if (isDeepSearch && searchQuery.isNotBlank()) {
+                return searchResults
+            }
+
             var result = files
 
             // Hidden filter
@@ -49,7 +61,7 @@ data class BrowserUiState(
             }
 
             // Search filter
-            if (searchQuery.isNotBlank()) {
+            if (searchQuery.isNotBlank() && !isDeepSearch) {
                 val q = searchQuery.lowercase()
                 result = result.filter { it.name.lowercase().contains(q) }
             }
@@ -96,4 +108,3 @@ private fun <T : Comparable<T>> dirFirstThenDesc(
     selector: (FileModel) -> T
 ): Comparator<FileModel> =
     compareByDescending<FileModel> { it.isDirectory }.thenByDescending(selector)
-

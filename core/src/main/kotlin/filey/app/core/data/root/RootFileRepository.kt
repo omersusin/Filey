@@ -166,9 +166,26 @@ class RootFileRepository : FileRepository {
                     "MD5" -> "md5sum"
                     else -> error("Unsupported algorithm: $algorithm")
                 }
-                val lines = execOut("$cmd ${path.shellEscape()}")
-                lines.firstOrNull()?.split(" ")?.firstOrNull()
-                    ?: error("checksum failed")
+                val result = exec("$cmd ${path.shellEscape()}")
+                if (!result.isSuccess) error("checksum failed: ${result.err.joinToString()}")
+                result.out.firstOrNull()?.split(" ")?.firstOrNull()
+                    ?: error("parse failed: ${result.out.joinToString()}")
+            }
+        }
+
+    override suspend fun searchFiles(rootPath: String, query: String): Result<List<FileModel>> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val escapedRoot = rootPath.shellEscape()
+                val escapedQuery = "*${query}*".shellEscape()
+                // find /path -maxdepth 5 -iname '*query*' -limit 100
+                // Note: toybox find might not support -limit, we'll use head
+                val lines = execOut("find $escapedRoot -maxdepth 5 -iname $escapedQuery | head -n 100")
+                
+                lines.mapNotNull { path ->
+                    val fileResult = getFileInfo(path)
+                    fileResult.getOrNull()
+                }
             }
         }
 

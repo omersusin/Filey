@@ -29,4 +29,5 @@ interface FileRepository {
     suspend fun readText(path: String): Result<String>
     suspend fun writeText(path: String, content: String): Result<Unit>
     suspend fun calculateChecksum(path: String, algorithm: String = "SHA-256"): Result<String>
+    suspend fun searchFiles(rootPath: String, query: String): Result<List<FileModel>>
 }

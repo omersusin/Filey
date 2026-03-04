@@ -154,6 +154,19 @@ class ShizukuFileRepository : FileRepository {
             }
         }
 
+    override suspend fun searchFiles(rootPath: String, query: String): Result<List<FileModel>> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val escapedRoot = rootPath.shellEscape()
+                val escapedQuery = "*${query}*".shellEscape()
+                val (stdout, _, _) = exec("find $escapedRoot -maxdepth 5 -iname $escapedQuery | head -n 100")
+                
+                stdout.mapNotNull { path ->
+                    getFileInfo(path).getOrNull()
+                }
+            }
+        }
+
     // ── Parsing (same logic as RootFileRepository) ──────────
 
     private fun parseLsLine(line: String, parentPath: String): FileModel? {

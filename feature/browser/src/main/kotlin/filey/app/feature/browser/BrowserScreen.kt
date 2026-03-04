@@ -8,6 +8,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ViewList
@@ -113,30 +116,149 @@ fun BrowserScreen(
         drawerContent = {
             ModalDrawerSheet {
                 Spacer(Modifier.height(12.dp))
-                Text(
-                    "Favori Klasörler",
-                    modifier = Modifier.padding(16.dp),
-                    style = MaterialTheme.typography.titleMedium
-                )
-                HorizontalDivider()
-                if (uiState.favorites.isEmpty()) {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text("Henüz favori yok", style = MaterialTheme.typography.bodySmall)
-                    }
-                } else {
-                    uiState.favorites.toList().sorted().forEach { favPath ->
-                        NavigationDrawerItem(
-                            label = { Text(favPath.substringAfterLast('/')) },
-                            selected = uiState.currentPath == favPath,
-                            onClick = {
-                                viewModel.navigateTo(favPath)
-                                scope.launch { drawerState.close() }
-                            },
-                            icon = { Icon(Icons.Default.Folder, null) },
-                            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                
+                // Storage Info
+                uiState.storageInfo?.let { info ->
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Hafıza", style = MaterialTheme.typography.titleSmall)
+                            Text(
+                                "${FileUtils.formatSize(info.usedBytes)} / ${FileUtils.formatSize(info.totalBytes)}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        val progress = if (info.totalBytes > 0) info.usedBytes.toFloat() / info.totalBytes else 0f
+                        LinearProgressIndicator(
+                            progress = { progress },
+                            modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
+                            color = if (progress > 0.9f) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                            trackColor = MaterialTheme.colorScheme.surfaceVariant
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            "${FileUtils.formatSize(info.freeBytes)} boş alan",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary
                         )
                     }
+                    HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
                 }
+
+                Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState())) {
+                    Text(
+                        "Favori Klasörler",
+                        modifier = Modifier.padding(16.dp),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    if (uiState.favorites.isEmpty()) {
+                        Text(
+                            "Henüz favori yok",
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(horizontal = 32.dp, vertical = 8.dp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        uiState.favorites.toList().sorted().forEach { favPath ->
+                            NavigationDrawerItem(
+                                label = { Text(favPath.substringAfterLast('/')) },
+                                selected = uiState.currentPath == favPath,
+                                onClick = {
+                                    viewModel.navigateTo(favPath)
+                                    scope.launch { drawerState.close() }
+                                },
+                                icon = { Icon(Icons.Default.Folder, null) },
+                                modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                            )
+                        }
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                    
+                    Text(
+                        "Son Kullanılanlar",
+                        modifier = Modifier.padding(16.dp),
+                        style = MaterialTheme.typography.titleMedium
+                    )
+                    if (uiState.recents.isEmpty()) {
+                        Text(
+                            "Henüz kayıt yok",
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.padding(horizontal = 32.dp, vertical = 8.dp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        uiState.recents.forEach { recentPath ->
+                            NavigationDrawerItem(
+                                label = {
+                                    Text(
+                                        recentPath.substringAfterLast('/'),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                },
+                                selected = false,
+                                onClick = {
+                                    scope.launch {
+                                        drawerState.close()
+                                        // Open the file
+                                        val file = try {
+                                            viewModel.uiState.value.files.find { it.path == recentPath } 
+                                                ?: FileModel(
+                                                    name = recentPath.substringAfterLast('/'),
+                                                    path = recentPath,
+                                                    isDirectory = false
+                                                )
+                                        } catch (e: Exception) {
+                                            FileModel(recentPath.substringAfterLast('/'), recentPath, false)
+                                        }
+                                        handleFileClick(
+                                            file = file,
+                                            viewModel = viewModel,
+                                            onImage = onNavigateToImage,
+                                            onVideo = onNavigateToVideo,
+                                            onAudio = onNavigateToAudio,
+                                            onText = onNavigateToEditor,
+                                            onArchive = onNavigateToArchive,
+                                            context = context,
+                                            callback = actionCallback
+                                        )
+                                    }
+                                },
+                                icon = {
+                                    Icon(
+                                        when (FileUtils.getFileType(recentPath, false)) {
+                                            FileType.IMAGE -> Icons.Outlined.Image
+                                            FileType.VIDEO -> Icons.Outlined.Movie
+                                            FileType.AUDIO -> Icons.Outlined.MusicNote
+                                            else -> Icons.Outlined.InsertDriveFile
+                                        },
+                                        null
+                                    )
+                                },
+                                modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                            )
+                        }
+                    }
+                }
+                
+                HorizontalDivider()
+                NavigationDrawerItem(
+                    label = { Text("Ayarlar") },
+                    selected = false,
+                    onClick = {
+                        onNavigateToSettings()
+                        scope.launch { drawerState.close() }
+                    },
+                    icon = { Icon(Icons.Default.Settings, null) },
+                    modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                )
+                Spacer(Modifier.height(12.dp))
             }
         }
     ) {
@@ -170,10 +292,11 @@ fun BrowserScreen(
                         SearchTopBar(
                             query = uiState.searchQuery,
                             onQueryChange = { viewModel.updateSearchQuery(it) },
+                            isDeepSearch = uiState.isDeepSearch,
+                            onDeepSearchToggle = { viewModel.toggleDeepSearch() },
                             onClose = { viewModel.toggleSearch() }
                         )
-                    }
-                    else -> {
+                    }                    else -> {
                         TopAppBar(
                             title = {
                                 Text(
@@ -518,6 +641,7 @@ private fun handleFileClick(
         viewModel.navigateTo(file.path)
         return
     }
+    viewModel.addToRecents(file.path)
     when (FileUtils.getFileType(file.path, false)) {
         FileType.IMAGE -> onImage(file.path)
         FileType.VIDEO -> onVideo(file.path)

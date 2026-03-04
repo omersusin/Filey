@@ -32,6 +32,7 @@ class AppPreferences(private val context: Context) {
         val SHOW_HIDDEN = booleanPreferencesKey("show_hidden")
         val LAST_PATH = stringPreferencesKey("last_path")
         val FAVORITES = stringPreferencesKey("favorites")
+        val RECENTS = stringPreferencesKey("recents")
     }
 
     // ── Access Mode ──
@@ -54,6 +55,10 @@ class AppPreferences(private val context: Context) {
     private val _favorites = MutableStateFlow<Set<String>>(emptySet())
     val favoritesFlow: StateFlow<Set<String>> = _favorites.asStateFlow()
 
+    // ── Recents ──
+    private val _recents = MutableStateFlow<List<String>>(emptyList())
+    val recentsFlow: StateFlow<List<String>> = _recents.asStateFlow()
+
     init {
         scope.launch {
             context.dataStore.data.collect { prefs ->
@@ -73,7 +78,20 @@ class AppPreferences(private val context: Context) {
 
                 val favs = prefs[Keys.FAVORITES]?.split(",")?.filter { it.isNotBlank() }?.toSet() ?: emptySet()
                 _favorites.value = favs
+
+                val recentList = prefs[Keys.RECENTS]?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
+                _recents.value = recentList
             }
+        }
+    }
+
+    suspend fun addRecent(path: String) {
+        context.dataStore.edit { prefs ->
+            val current = prefs[Keys.RECENTS]?.split(",")?.filter { it.isNotBlank() }?.toMutableList() ?: mutableListOf()
+            current.remove(path)
+            current.add(0, path)
+            val limited = current.take(20)
+            prefs[Keys.RECENTS] = limited.joinToString(",")
         }
     }
 

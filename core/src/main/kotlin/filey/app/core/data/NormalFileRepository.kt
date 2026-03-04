@@ -157,7 +157,7 @@ class NormalFileRepository : FileRepository {
         withContext(Dispatchers.IO) {
             runCatching {
                 val digest = MessageDigest.getInstance(algorithm)
-                FileInputStream(path).use { fis ->
+                File(path).inputStream().use { fis ->
                     val buffer = ByteArray(8192)
                     var bytesRead: Int
                     while (fis.read(buffer).also { bytesRead = it } != -1) {
@@ -165,6 +165,22 @@ class NormalFileRepository : FileRepository {
                     }
                 }
                 digest.digest().joinToString("") { "%02x".format(it) }
+            }
+        }
+
+    override suspend fun searchFiles(rootPath: String, query: String): Result<List<FileModel>> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val root = File(rootPath)
+                if (!root.exists() || !root.isDirectory) return@runCatching emptyList()
+
+                val lowerQuery = query.lowercase()
+                root.walkTopDown()
+                    .maxDepth(5) // Limit depth for performance
+                    .filter { it.name.lowercase().contains(lowerQuery) }
+                    .take(100) // Limit results
+                    .map { it.toFileModel() }
+                    .toList()
             }
         }
 
