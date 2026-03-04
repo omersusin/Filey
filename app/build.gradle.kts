@@ -46,12 +46,18 @@ android {
 
 dependencies {
     implementation(project(":core"))
-    implementation(project(":feature:browser"))
-    implementation(project(":feature:viewer"))
-    implementation(project(":feature:player"))
-    implementation(project(":feature:editor"))
+    implementation(project(":feature:analyzer"))
     implementation(project(":feature:archive"))
+    implementation(project(":feature:browser"))
+    implementation(project(":feature:dashboard"))
+    implementation(project(":feature:duplicates"))
+    implementation(project(":feature:editor"))
+    implementation(project(":feature:organizer"))
+    implementation(project(":feature:player"))
+    implementation(project(":feature:server"))
     implementation(project(":feature:settings"))
+    implementation(project(":feature:trash"))
+    implementation(project(":feature:viewer"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime)

@@ -11,20 +11,21 @@ import java.util.Locale
 
 object FileUtils {
 
-    fun calculateHash(filePath: String, algorithm: String = "MD5"): String? {
+    fun calculateHash(filePath: String, algorithm: String = "SHA-256"): String? {
         val file = File(filePath)
         if (!file.exists() || file.isDirectory) return null
         return try {
             val md = MessageDigest.getInstance(algorithm)
-            val fis = FileInputStream(file)
-            val buffer = ByteArray(8192)
-            var n: Int
-            while (fis.read(buffer).also { n = it } != -1) {
-                md.update(buffer, 0, n)
+            FileInputStream(file).use { fis ->
+                val buffer = ByteArray(8192)
+                var n: Int
+                while (fis.read(buffer).also { n = it } != -1) {
+                    md.update(buffer, 0, n)
+                }
             }
-            fis.close()
             md.digest().joinToString("") { "%02x".format(it) }
         } catch (e: Exception) {
+            e.printStackTrace()
             null
         }
     }

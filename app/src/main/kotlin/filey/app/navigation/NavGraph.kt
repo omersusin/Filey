@@ -20,9 +20,9 @@ import filey.app.feature.analyzer.StorageAnalyzerScreen
 import filey.app.feature.trash.TrashScreen
 import filey.app.feature.duplicates.DuplicateFinderScreen
 import filey.app.feature.server.ServerScreen
-import filey.app.core.model.FileCategory
-import androidx.lifecycle.viewmodel.compose.viewModel
-import filey.app.feature.browser.BrowserViewModel
+import filey.app.feature.organizer.ui.OrganizerScreen
+import filey.app.feature.settings.SettingsScreen
+import filey.app.feature.dashboard.DashboardScreen
 
 @Composable
 fun NavGraph(navController: NavHostController) {
@@ -44,9 +44,24 @@ fun NavGraph(navController: NavHostController) {
                 },
                 onNavigateToDuplicates = {
                     navController.navigate("duplicates")
+                },
+                onNavigateToOrganizer = {
+                    navController.navigate("organizer")
+                },
+                onNavigateToTrash = {
+                    navController.navigate("trash")
+                },
+                onNavigateToServer = {
+                    navController.navigate("server")
                 }
             )
         }
+
+        // ── Organizer ──
+        composable("organizer") {
+            OrganizerScreen(onNavigateBack = { navController.popBackStack() })
+        }
+
 
         // ── Analyzer ──
         composable("analyzer") {
