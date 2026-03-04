@@ -31,6 +31,7 @@ class AppPreferences(private val context: Context) {
         val SORT_OPTION = stringPreferencesKey("sort_option")
         val SHOW_HIDDEN = booleanPreferencesKey("show_hidden")
         val LAST_PATH = stringPreferencesKey("last_path")
+        val FAVORITES = stringPreferencesKey("favorites")
     }
 
     // ── Access Mode ──
@@ -49,6 +50,10 @@ class AppPreferences(private val context: Context) {
     private val _showHidden = MutableStateFlow(false)
     val showHiddenFlow: StateFlow<Boolean> = _showHidden.asStateFlow()
 
+    // ── Favorites ──
+    private val _favorites = MutableStateFlow<Set<String>>(emptySet())
+    val favoritesFlow: StateFlow<Set<String>> = _favorites.asStateFlow()
+
     init {
         scope.launch {
             context.dataStore.data.collect { prefs ->
@@ -65,7 +70,22 @@ class AppPreferences(private val context: Context) {
                 } catch (_: Exception) { SortOption.NAME_ASC }
 
                 _showHidden.value = prefs[Keys.SHOW_HIDDEN] ?: false
+
+                val favs = prefs[Keys.FAVORITES]?.split(",")?.filter { it.isNotBlank() }?.toSet() ?: emptySet()
+                _favorites.value = favs
             }
+        }
+    }
+
+    suspend fun toggleFavorite(path: String) {
+        context.dataStore.edit { prefs ->
+            val current = prefs[Keys.FAVORITES]?.split(",")?.filter { it.isNotBlank() }?.toMutableSet() ?: mutableSetOf()
+            if (current.contains(path)) {
+                current.remove(path)
+            } else {
+                current.add(path)
+            }
+            prefs[Keys.FAVORITES] = current.joinToString(",")
         }
     }
 

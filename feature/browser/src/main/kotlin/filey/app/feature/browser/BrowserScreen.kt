@@ -106,57 +106,95 @@ fun BrowserScreen(
     var showDeleteSelectedConfirm by remember { mutableStateOf(false) }
     var showAccessModeSheet by remember { mutableStateOf(false) }
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbarHostState) },
-        topBar = {
-            when {
-                uiState.isMultiSelectActive -> {
-                    MultiSelectTopBar(
-                        selectedCount = uiState.selectedFiles.size,
-                        onClose = { viewModel.clearSelection() },
-                        onSelectAll = { viewModel.selectAll() },
-                        onDeleteSelected = { showDeleteSelectedConfirm = true },
-                        onCopySelected = {
-                            viewModel.setClipboard(
-                                uiState.selectedFiles.toList(), isCut = false
-                            )
-                            viewModel.clearSelection()
-                            viewModel.showSnackbar("${uiState.selectedFiles.size} öğe panoya kopyalandı")
-                        },
-                        onCutSelected = {
-                            viewModel.setClipboard(
-                                uiState.selectedFiles.toList(), isCut = true
-                            )
-                            viewModel.clearSelection()
-                            viewModel.showSnackbar("${uiState.selectedFiles.size} öğe kesildi")
-                        }
-                    )
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ModalDrawerSheet {
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "Favori Klasörler",
+                    modifier = Modifier.padding(16.dp),
+                    style = MaterialTheme.typography.titleMedium
+                )
+                HorizontalDivider()
+                if (uiState.favorites.isEmpty()) {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Henüz favori yok", style = MaterialTheme.typography.bodySmall)
+                    }
+                } else {
+                    uiState.favorites.toList().sorted().forEach { favPath ->
+                        NavigationDrawerItem(
+                            label = { Text(favPath.substringAfterLast('/')) },
+                            selected = uiState.currentPath == favPath,
+                            onClick = {
+                                viewModel.navigateTo(favPath)
+                                scope.launch { drawerState.close() }
+                            },
+                            icon = { Icon(Icons.Default.Folder, null) },
+                            modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                        )
+                    }
                 }
-                uiState.isSearchActive -> {
-                    SearchTopBar(
-                        query = uiState.searchQuery,
-                        onQueryChange = { viewModel.updateSearchQuery(it) },
-                        onClose = { viewModel.toggleSearch() }
-                    )
-                }
-                else -> {
-                    TopAppBar(
-                        title = {
-                            Text(
-                                text = uiState.pathSegments.lastOrNull()?.name ?: "Filey",
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        },
-                        navigationIcon = {
-                            if (uiState.canGoBack ||
-                                uiState.currentPath != BrowserUiState.DEFAULT_PATH
-                            ) {
-                                IconButton(onClick = { viewModel.navigateUp() }) {
-                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, "Geri")
-                                }
+            }
+        }
+    ) {
+        Scaffold(
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+            topBar = {
+                when {
+                    uiState.isMultiSelectActive -> {
+                        MultiSelectTopBar(
+                            selectedCount = uiState.selectedFiles.size,
+                            onClose = { viewModel.clearSelection() },
+                            onSelectAll = { viewModel.selectAll() },
+                            onDeleteSelected = { showDeleteSelectedConfirm = true },
+                            onCopySelected = {
+                                viewModel.setClipboard(
+                                    uiState.selectedFiles.toList(), isCut = false
+                                )
+                                viewModel.clearSelection()
+                                viewModel.showSnackbar("${uiState.selectedFiles.size} öğe panoya kopyalandı")
+                            },
+                            onCutSelected = {
+                                viewModel.setClipboard(
+                                    uiState.selectedFiles.toList(), isCut = true
+                                )
+                                viewModel.clearSelection()
+                                viewModel.showSnackbar("${uiState.selectedFiles.size} öğe kesildi")
                             }
-                        },
+                        )
+                    }
+                    uiState.isSearchActive -> {
+                        SearchTopBar(
+                            query = uiState.searchQuery,
+                            onQueryChange = { viewModel.updateSearchQuery(it) },
+                            onClose = { viewModel.toggleSearch() }
+                        )
+                    }
+                    else -> {
+                        TopAppBar(
+                            title = {
+                                Text(
+                                    text = uiState.pathSegments.lastOrNull()?.name ?: "Filey",
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            },
+                            navigationIcon = {
+                                if (uiState.canGoBack ||
+                                    uiState.currentPath != BrowserUiState.DEFAULT_PATH
+                                ) {
+                                    IconButton(onClick = { viewModel.navigateUp() }) {
+                                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Geri")
+                                    }
+                                } else {
+                                    IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                                        Icon(Icons.Default.Menu, "Menü")
+                                    }
+                                }
+                            },
                         actions = {
                             if (uiState.accessMode != AccessMode.NORMAL) {
                                 IconButton(onClick = { showAccessModeSheet = true }) {
@@ -310,7 +348,11 @@ fun BrowserScreen(
                     )
                 }
                 uiState.displayFiles.isEmpty() -> {
-                    EmptyContent(isSearchActive = uiState.isSearchActive)
+                    EmptyContent(
+                        isSearchActive = uiState.isSearchActive,
+                        showHiddenFiles = uiState.showHiddenFiles,
+                        onToggleHidden = { viewModel.toggleHiddenFiles() }
+                    )
                 }
                 else -> {
                     FileContent(
@@ -379,6 +421,8 @@ fun BrowserScreen(
         FileOptionsSheet(
             file = file,
             actions = actionRegistry.getActionsForFile(file),
+            favorites = uiState.favorites,
+            onToggleFavorite = { viewModel.toggleFavorite(it) },
             callback = actionCallback,
             onResult = { result ->
                 showOptionsFor = null
@@ -454,6 +498,7 @@ fun BrowserScreen(
             onDismiss = { showAccessModeSheet = false }
         )
     }
+}
 }
 
 // ══════════ HELPERS ══════════

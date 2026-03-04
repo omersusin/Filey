@@ -69,7 +69,11 @@ fun ErrorContent(
 }
 
 @Composable
-fun EmptyContent(isSearchActive: Boolean) {
+fun EmptyContent(
+    isSearchActive: Boolean,
+    showHiddenFiles: Boolean = false,
+    onToggleHidden: (() -> Unit)? = null
+) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(
@@ -84,6 +88,12 @@ fun EmptyContent(isSearchActive: Boolean) {
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            if (!isSearchActive && !showHiddenFiles && onToggleHidden != null) {
+                Spacer(Modifier.height(16.dp))
+                TextButton(onClick = onToggleHidden) {
+                    Text("Gizli dosyaları göster")
+                }
+            }
         }
     }
 }

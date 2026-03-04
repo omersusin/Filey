@@ -57,9 +57,24 @@ class BrowserViewModel(
                 _uiState.update { it.copy(accessMode = mode) }
             }
         }
+        viewModelScope.launch {
+            preferences.favoritesFlow.collect { favs ->
+                _uiState.update { it.copy(favorites = favs) }
+            }
+        }
 
         // Initial load
         loadDirectory(BrowserUiState.DEFAULT_PATH)
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // FAVORITES
+    // ══════════════════════════════════════════════════════════
+
+    fun toggleFavorite(path: String) {
+        viewModelScope.launch {
+            preferences.toggleFavorite(path)
+        }
     }
 
     // ══════════════════════════════════════════════════════════

@@ -32,6 +32,9 @@ data class BrowserUiState(
     // Access mode
     val accessMode: AccessMode = AccessMode.NORMAL,
 
+    // Favorites
+    val favorites: Set<String> = emptySet(),
+
     // Operation progress
     val operationMessage: String? = null
 ) {

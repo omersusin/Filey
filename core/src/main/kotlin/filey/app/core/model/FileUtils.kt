@@ -1,12 +1,33 @@
 package filey.app.core.model
 
 import android.webkit.MimeTypeMap
+import java.io.File
+import java.io.FileInputStream
+import java.security.MessageDigest
 import java.text.DecimalFormat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
 object FileUtils {
+
+    fun calculateHash(filePath: String, algorithm: String = "MD5"): String? {
+        val file = File(filePath)
+        if (!file.exists() || file.isDirectory) return null
+        return try {
+            val md = MessageDigest.getInstance(algorithm)
+            val fis = FileInputStream(file)
+            val buffer = ByteArray(8192)
+            var n: Int
+            while (fis.read(buffer).also { n = it } != -1) {
+                md.update(buffer, 0, n)
+            }
+            fis.close()
+            md.digest().joinToString("") { "%02x".format(it) }
+        } catch (e: Exception) {
+            null
+        }
+    }
 
     private val textExtensions = setOf(
         "txt", "md", "json", "xml", "html", "htm", "css", "js", "ts",

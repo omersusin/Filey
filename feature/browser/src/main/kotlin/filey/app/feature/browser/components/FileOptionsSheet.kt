@@ -9,6 +9,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.StarOutline
 import filey.app.core.model.FileModel
 import filey.app.core.model.FileUtils
 import filey.app.feature.browser.actions.ActionResult
@@ -21,17 +24,18 @@ import kotlinx.coroutines.launch
 fun FileOptionsSheet(
     file: FileModel,
     actions: List<FileAction>,
+    favorites: Set<String>,
+    onToggleFavorite: (String) -> Unit,
     callback: FileActionCallback,
     onResult: (ActionResult) -> Unit,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    val sheetState = rememberModalBottomSheetState()
+    val isFavorite = favorites.contains(file.path)
 
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = sheetState
+        onDismissRequest = onDismiss
     ) {
         Column(modifier = Modifier.padding(bottom = 32.dp)) {
             // File header
@@ -41,13 +45,37 @@ fun FileOptionsSheet(
                     Text(file.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 },
                 supportingContent = {
-                    if (!file.isDirectory) {
+                    if (file.name == "^") {
+                        Text("Üst dizin")
+                    } else if (file.isDirectory) {
+                        Text("${file.childCount} öğe")
+                    } else {
                         Text(FileUtils.formatSize(file.size))
                     }
                 }
             )
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+
+            // Toggle Favorite (Only for directories and not "^")
+            if (file.isDirectory && file.name != "^") {
+                ListItem(
+                    modifier = Modifier.clickable {
+                        onToggleFavorite(file.path)
+                        onDismiss()
+                    },
+                    leadingContent = {
+                        Icon(
+                            if (isFavorite) Icons.Default.Star else Icons.Default.StarOutline,
+                            contentDescription = null,
+                            tint = if (isFavorite) MaterialTheme.colorScheme.primary else LocalContentColor.current
+                        )
+                    },
+                    headlineContent = {
+                        Text(if (isFavorite) "Favorilerden Çıkar" else "Favorilere Ekle")
+                    }
+                )
+            }
 
             // Actions
             actions.forEach { action ->
