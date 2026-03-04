@@ -173,6 +173,11 @@ class ShizukuFileRepository : FileRepository {
             Result.success(emptyList())
         }
 
+    override suspend fun moveToTrash(path: String) = delete(path)
+    override suspend fun restoreFromTrash(path: String) = Result.failure<Unit>(Exception("Not supported"))
+    override suspend fun getTrashFiles() = Result.success(emptyList<FileModel>())
+    override suspend fun emptyTrash() = Result.success(Unit)
+
     // ── Parsing (same logic as RootFileRepository) ──────────
 
     private fun parseLsLine(line: String, parentPath: String): FileModel? {

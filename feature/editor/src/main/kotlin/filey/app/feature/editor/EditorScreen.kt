@@ -134,14 +134,14 @@ fun EditorScreen(
                     }
                 }
                 else -> {
+                    val scrollState = rememberScrollState()
+                    val lineCount = uiState.content.lines().size
+                    
                     Row(modifier = Modifier.fillMaxSize()) {
                         // Line numbers
-                        val scrollState = rememberScrollState()
-                        val lineCount = uiState.content.lines().size
-                        
                         Column(
                             modifier = Modifier
-                                .width(40.dp)
+                                .width(44.dp)
                                 .fillMaxHeight()
                                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
                                 .verticalScroll(scrollState)
@@ -156,12 +156,13 @@ fun EditorScreen(
                                         fontSize = 12.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                     ),
-                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 1.dp),
                                     textAlign = TextAlign.End
                                 )
                             }
                         }
 
+                        // Editor content
                         BasicTextField(
                             value = uiState.content,
                             onValueChange = { viewModel.updateContent(it) },
@@ -172,8 +173,8 @@ fun EditorScreen(
                             ),
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(horizontal = 8.dp, vertical = 8.dp)
                                 .verticalScroll(scrollState)
+                                .padding(horizontal = 12.dp, vertical = 8.dp)
                         )
                     }
                 }

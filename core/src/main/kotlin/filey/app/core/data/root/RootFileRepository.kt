@@ -197,6 +197,11 @@ class RootFileRepository : FileRepository {
             Result.success(emptyList())
         }
 
+    override suspend fun moveToTrash(path: String) = delete(path) // Default to delete for root
+    override suspend fun restoreFromTrash(path: String) = Result.failure<Unit>(Exception("Not supported"))
+    override suspend fun getTrashFiles() = Result.success(emptyList<FileModel>())
+    override suspend fun emptyTrash() = Result.success(Unit)
+
     // ── Parsing helpers ─────────────────────────────────────
 
     private fun parseLsLine(line: String, parentPath: String): FileModel? {

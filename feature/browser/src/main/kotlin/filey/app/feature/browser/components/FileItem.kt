@@ -150,12 +150,16 @@ fun FileIcon(file: FileModel, size: Int) {
         )
 
         if (type == FileType.IMAGE || type == FileType.VIDEO) {
-            AsyncImage(
-                model = ImageRequest.Builder(LocalContext.current)
+            val context = LocalContext.current
+            val model = remember(file.path) {
+                ImageRequest.Builder(context)
                     .data(file.path)
                     .decoderFactory { result, options, _ -> VideoFrameDecoder(result.source, options) }
                     .crossfade(true)
-                    .build(),
+                    .build()
+            }
+            AsyncImage(
+                model = model,
                 contentDescription = null,
                 modifier = Modifier
                     .size(size.dp)

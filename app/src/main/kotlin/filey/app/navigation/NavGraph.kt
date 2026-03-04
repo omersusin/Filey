@@ -17,6 +17,7 @@ import filey.app.feature.viewer.ImageViewerScreen
 import filey.app.feature.settings.SettingsScreen
 import filey.app.feature.dashboard.DashboardScreen
 import filey.app.feature.analyzer.StorageAnalyzerScreen
+import filey.app.feature.trash.TrashScreen
 import filey.app.core.model.FileCategory
 import androidx.lifecycle.viewmodel.compose.viewModel
 import filey.app.feature.browser.BrowserViewModel
@@ -45,6 +46,11 @@ fun NavGraph(navController: NavHostController) {
         // ── Analyzer ──
         composable("analyzer") {
             StorageAnalyzerScreen(onBack = { navController.popBackStack() })
+        }
+
+        // ── Trash ──
+        composable("trash") {
+            TrashScreen(onBack = { navController.popBackStack() })
         }
 
         // ── Category View ──
@@ -82,6 +88,9 @@ fun NavGraph(navController: NavHostController) {
                 },
                 onNavigateToDashboard = {
                     navController.popBackStack("dashboard", false)
+                },
+                onNavigateToTrash = {
+                    navController.navigate("trash")
                 }
             )
         }
@@ -111,6 +120,9 @@ fun NavGraph(navController: NavHostController) {
                     navController.navigate("dashboard") {
                         popUpTo("browser") { inclusive = true }
                     }
+                },
+                onNavigateToTrash = {
+                    navController.navigate("trash")
                 }
             )
         }

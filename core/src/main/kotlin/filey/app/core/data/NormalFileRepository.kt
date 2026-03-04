@@ -230,10 +230,75 @@ class NormalFileRepository(private val context: Context) : FileRepository {
             }
         }
 
+    // ── Trash Implementation ──
+    
+    private val trashDir by lazy { 
+        File(context.getExternalFilesDir(null), ".trash").apply { mkdirs() } 
+    }
+
+    override suspend fun moveToTrash(path: String): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            val src = File(path)
+            if (!src.exists()) error("Dosya bulunamadı")
+            
+            // Encode original path in filename: time_originalPathEncoded
+            val encodedPath = android.util.Base64.encodeToString(
+                src.absolutePath.toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP
+            )
+            val trashFile = File(trashDir, "${System.currentTimeMillis()}_$encodedPath")
+            
+            if (!src.renameTo(trashFile)) {
+                error("Çöp kutusuna taşınamadı")
+            }
+        }
+    }
+
+    override suspend fun restoreFromTrash(path: String): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            val trashFile = File(path)
+            val name = trashFile.name
+            val encodedPath = name.substringAfter('_')
+            val originalPath = String(android.util.Base64.decode(encodedPath, android.util.Base64.URL_SAFE))
+            
+            val dst = File(originalPath)
+            dst.parentFile?.mkdirs()
+            
+            if (!trashFile.renameTo(dst)) {
+                error("Geri yüklenemedi")
+            }
+        }
+    }
+
+    override suspend fun getTrashFiles(): Result<List<FileModel>> = withContext(Dispatchers.IO) {
+        runCatching {
+            trashDir.listFiles()?.map { file ->
+                val name = file.name
+                val encodedPath = name.substringAfter('_')
+                val originalPath = String(android.util.Base64.decode(encodedPath, android.util.Base64.URL_SAFE))
+                
+                FileModel(
+                    name = originalPath.substringAfterLast('/'),
+                    path = file.absolutePath,
+                    isDirectory = file.isDirectory,
+                    size = file.length(),
+                    lastModified = file.lastModified(),
+                    isHidden = false
+                )
+            }?.sortedByDescending { it.lastModified } ?: emptyList()
+        }
+    }
+
+    override suspend fun emptyTrash(): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            trashDir.deleteRecursively()
+            trashDir.mkdirs()
+            Unit
+        }
+    }
+
     // ── Private helpers ─────────────────────────────────────
 
     private fun File.toFileModel(): FileModel {
-        val childCount = if (isDirectory) (listFiles()?.size ?: 0) else 0
         return FileModel(
             name = name,
             path = absolutePath,
@@ -243,7 +308,7 @@ class NormalFileRepository(private val context: Context) : FileRepository {
             isHidden = isHidden,
             extension = extension.lowercase(),
             mimeType = if (isDirectory) "" else FileUtils.getMimeType(absolutePath),
-            childCount = childCount
+            childCount = 0 // Optimized: Don't count children during listing
         )
     }
 

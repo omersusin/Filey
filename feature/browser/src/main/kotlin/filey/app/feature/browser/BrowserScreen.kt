@@ -41,6 +41,7 @@ fun BrowserScreen(
     onNavigateToArchive: (String) -> Unit,
     onNavigateToSettings: () -> Unit,
     onNavigateToDashboard: () -> Unit,
+    onNavigateToTrash: () -> Unit,
     viewModel: BrowserViewModel = viewModel(factory = BrowserViewModel.Factory)
 ) {
     val context = LocalContext.current
@@ -127,6 +128,17 @@ fun BrowserScreen(
                         scope.launch { drawerState.close() }
                     },
                     icon = { Icon(Icons.Default.Home, null) },
+                    modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                )
+
+                NavigationDrawerItem(
+                    label = { Text("Çöp Kutusu") },
+                    selected = false,
+                    onClick = {
+                        onNavigateToTrash()
+                        scope.launch { drawerState.close() }
+                    },
+                    icon = { Icon(Icons.Default.Delete, null) },
                     modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                 )
 
@@ -609,7 +621,7 @@ fun BrowserScreen(
             fileName = file.name,
             onDismiss = { showDeleteConfirmFor = null },
             onConfirm = {
-                viewModel.deleteFile(file.path)
+                viewModel.moveToTrash(file.path)
                 showDeleteConfirmFor = null
             }
         )
@@ -620,7 +632,7 @@ fun BrowserScreen(
             fileName = "${uiState.selectedFiles.size} öğe",
             onDismiss = { showDeleteSelectedConfirm = false },
             onConfirm = {
-                viewModel.deleteSelected()
+                viewModel.deleteSelected(permanently = false)
                 showDeleteSelectedConfirm = false
             }
         )
@@ -672,7 +684,7 @@ private fun handleFileClick(
         FileType.TEXT -> onText(file.path)
         FileType.ARCHIVE -> onArchive(file.path)
         else -> {
-            kotlinx.coroutines.MainScope().launch {
+            scope.launch {
                 OpenWithAction().execute(context, file, callback)
             }
         }

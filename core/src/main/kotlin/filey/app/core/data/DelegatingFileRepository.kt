@@ -44,4 +44,9 @@ class DelegatingFileRepository(
         current().searchFiles(rootPath, query)
     override suspend fun getCategoryFiles(category: filey.app.core.model.FileCategory) =
         current().getCategoryFiles(category)
+
+    override suspend fun moveToTrash(path: String) = current().moveToTrash(path)
+    override suspend fun restoreFromTrash(path: String) = current().restoreFromTrash(path)
+    override suspend fun getTrashFiles() = current().getTrashFiles()
+    override suspend fun emptyTrash() = current().emptyTrash()
 }

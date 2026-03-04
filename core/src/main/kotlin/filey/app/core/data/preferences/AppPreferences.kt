@@ -15,14 +15,13 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
-private val Context.dataStore by preferencesDataStore(name = "filey_prefs")
+private val Context.dataStore by preferencesDataStore(name = "settings")
 
 class AppPreferences(private val context: Context) {
 
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     // Keys
     private object Keys {
@@ -59,6 +58,10 @@ class AppPreferences(private val context: Context) {
     private val _recents = MutableStateFlow<List<String>>(emptyList())
     val recentsFlow: StateFlow<List<String>> = _recents.asStateFlow()
 
+    // ── Last Path ──
+    private val _lastPath = MutableStateFlow<String?>(null)
+    val lastPathFlow: StateFlow<String?> = _lastPath.asStateFlow()
+
     init {
         scope.launch {
             context.dataStore.data.collect { prefs ->
@@ -76,10 +79,13 @@ class AppPreferences(private val context: Context) {
 
                 _showHidden.value = prefs[Keys.SHOW_HIDDEN] ?: false
 
-                val favs = prefs[Keys.FAVORITES]?.split(",")?.filter { it.isNotBlank() }?.toSet() ?: emptySet()
+                _lastPath.value = prefs[Keys.LAST_PATH]
+
+                // Use Set for favorites to avoid issues with CSV parsing
+                val favs = prefs[Keys.FAVORITES]?.split("|")?.filter { it.isNotBlank() }?.toSet() ?: emptySet()
                 _favorites.value = favs
 
-                val recentList = prefs[Keys.RECENTS]?.split(",")?.filter { it.isNotBlank() } ?: emptyList()
+                val recentList = prefs[Keys.RECENTS]?.split("|")?.filter { it.isNotBlank() } ?: emptyList()
                 _recents.value = recentList
             }
         }
@@ -87,23 +93,23 @@ class AppPreferences(private val context: Context) {
 
     suspend fun addRecent(path: String) {
         context.dataStore.edit { prefs ->
-            val current = prefs[Keys.RECENTS]?.split(",")?.filter { it.isNotBlank() }?.toMutableList() ?: mutableListOf()
+            val current = prefs[Keys.RECENTS]?.split("|")?.filter { it.isNotBlank() }?.toMutableList() ?: mutableListOf()
             current.remove(path)
             current.add(0, path)
             val limited = current.take(20)
-            prefs[Keys.RECENTS] = limited.joinToString(",")
+            prefs[Keys.RECENTS] = limited.joinToString("|")
         }
     }
 
     suspend fun toggleFavorite(path: String) {
         context.dataStore.edit { prefs ->
-            val current = prefs[Keys.FAVORITES]?.split(",")?.filter { it.isNotBlank() }?.toMutableSet() ?: mutableSetOf()
+            val current = prefs[Keys.FAVORITES]?.split("|")?.filter { it.isNotBlank() }?.toMutableSet() ?: mutableSetOf()
             if (current.contains(path)) {
                 current.remove(path)
             } else {
                 current.add(path)
             }
-            prefs[Keys.FAVORITES] = current.joinToString(",")
+            prefs[Keys.FAVORITES] = current.joinToString("|")
         }
     }
 
@@ -127,5 +133,5 @@ class AppPreferences(private val context: Context) {
         context.dataStore.edit { it[Keys.LAST_PATH] = path }
     }
 
-    fun getLastPath(): String? = null // read synchronously from init if needed
+    fun getLastPath(): String? = _lastPath.value
 }

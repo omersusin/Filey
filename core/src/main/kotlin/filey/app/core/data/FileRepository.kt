@@ -31,4 +31,10 @@ interface FileRepository {
     suspend fun calculateChecksum(path: String, algorithm: String = "SHA-256"): Result<String>
     suspend fun searchFiles(rootPath: String, query: String): Result<List<FileModel>>
     suspend fun getCategoryFiles(category: filey.app.core.model.FileCategory): Result<List<FileModel>>
+    
+    // ── Trash ──
+    suspend fun moveToTrash(path: String): Result<Unit>
+    suspend fun restoreFromTrash(path: String): Result<Unit>
+    suspend fun getTrashFiles(): Result<List<FileModel>>
+    suspend fun emptyTrash(): Result<Unit>
 }
