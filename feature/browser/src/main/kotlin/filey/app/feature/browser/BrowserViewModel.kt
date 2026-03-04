@@ -3,6 +3,7 @@ package filey.app.feature.browser
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.os.FileObserver
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -34,6 +35,9 @@ class BrowserViewModel(
     private val pathHistory = mutableListOf(BrowserUiState.DEFAULT_PATH)
     private var historyIndex = 0
     private var searchJob: Job? = null
+
+    // ── Folder Watcher ──
+    private var folderObserver: FileObserver? = null
 
     // ── Snackbar & Undo ──
     data class SnackbarData(val message: String, val actionLabel: String? = null, val onAction: (() -> Unit)? = null)
@@ -86,6 +90,7 @@ class BrowserViewModel(
             result = result.filter { !it.isHidden }
         }
 
+        // Apply filters
         if (filters.type != null) {
             result = result.filter { FileUtils.getFileType(it.path, it.isDirectory) == filters.type }
         }
@@ -123,6 +128,31 @@ class BrowserViewModel(
         _uiState.update { it.copy(displayFiles = result) }
     }
 
+    // ── Folder Watcher ──
+    fun toggleFolderWatcher() {
+        val currentPath = _uiState.value.currentPath
+        if (folderObserver != null) {
+            folderObserver?.stopWatching()
+            folderObserver = null
+            showSnackbar("İzleme durduruldu")
+        } else {
+            if (currentPath.startsWith("/storage")) {
+                folderObserver = object : FileObserver(currentPath, CREATE or DELETE or MODIFY or MOVED_TO) {
+                    override fun onEvent(event: Int, path: String?) {
+                        viewModelScope.launch {
+                            refreshCurrentDirectory()
+                            path?.let { showSnackbar("Klasör değişti: $it") }
+                        }
+                    }
+                }
+                folderObserver?.startWatching()
+                showSnackbar("Klasör izleniyor…")
+            } else {
+                showSnackbar("Bu konum izlenemiyor")
+            }
+        }
+    }
+
     // ── Shelf (Staging Area) ──
     fun toggleShelfItem(path: String) {
         _uiState.update { state ->
@@ -153,7 +183,6 @@ class BrowserViewModel(
         }
     }
 
-    // ── Rest of Methods ──
     fun toggleFavorite(path: String) = viewModelScope.launch { preferences.toggleFavorite(path) }
     fun addToRecents(path: String) = viewModelScope.launch { preferences.addRecent(path) }
 
@@ -183,6 +212,10 @@ class BrowserViewModel(
     }
 
     fun loadDirectory(path: String, addToHistory: Boolean = false) {
+        // Stop previous observer when leaving directory
+        folderObserver?.stopWatching()
+        folderObserver = null
+
         viewModelScope.launch {
             preferences.setLastPath(path)
             _uiState.update {
@@ -211,6 +244,8 @@ class BrowserViewModel(
     }
 
     fun loadCategory(category: FileCategory) = viewModelScope.launch {
+        folderObserver?.stopWatching()
+        folderObserver = null
         _uiState.update {
             it.copy(
                 isLoading = true, error = null, currentPath = category.label,
@@ -409,13 +444,21 @@ class BrowserViewModel(
     fun selectAll() = _uiState.update { it.copy(selectedFiles = it.displayFiles.map { f -> f.path }.toSet(), isMultiSelectActive = true) }
     fun clearSelection() = _uiState.update { it.copy(selectedFiles = emptySet(), isMultiSelectActive = false) }
 
-    fun setAccessMode(mode: AccessMode) = viewModelScope.launch { preferences.setAccessMode(mode); refreshCurrentDirectory() }
+    fun setAccessMode(mode: AccessMode) = viewModelScope.launch {
+        preferences.setAccessMode(mode); refreshCurrentDirectory()
+    }
+
     fun refreshCurrentDirectory() = loadDirectory(_uiState.value.currentPath)
     fun clearError() = _uiState.update { it.copy(error = null) }
     fun showSnackbar(message: String, action: String? = null, onAction: (() -> Unit)? = null) {
         _snackbarEvent.value = SnackbarData(message, action, onAction)
     }
     fun clearSnackbar() { _snackbarEvent.value = null }
+
+    override fun onCleared() {
+        super.onCleared()
+        folderObserver?.stopWatching()
+    }
 
     fun createActionCallback(context: Context): FileActionCallback = object : FileActionCallback {
         override fun onSuccess(message: String) = showSnackbar(message)

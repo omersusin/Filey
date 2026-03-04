@@ -458,9 +458,16 @@ fun BrowserScreen(
                                         }
                                     )
                                     DropdownMenuItem(
-                                        text = { Text("Erişim modu") },
-                                        leadingIcon = { Icon(Icons.Default.Security, null) },
+                                        text = { Text("Bu klasörü izle") },
+                                        leadingIcon = { Icon(Icons.Default.NotificationsActive, null) },
                                         onClick = {
+                                            viewModel.toggleFolderWatcher()
+                                            expanded = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Erişim modu") },
+                                        leadingIcon = { Icon(Icons.Default.Security, null) },                                        onClick = {
                                             showAccessModeSheet = true
                                             expanded = false
                                         }

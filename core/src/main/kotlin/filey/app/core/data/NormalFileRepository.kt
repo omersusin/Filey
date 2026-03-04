@@ -1,6 +1,7 @@
 package filey.app.core.data
 
 import android.content.Context
+import android.os.Build
 import android.os.StatFs
 import android.provider.MediaStore
 import filey.app.core.model.FileCategory
@@ -45,7 +46,15 @@ class NormalFileRepository(private val context: Context) : FileRepository {
             runCatching {
                 val file = File(path)
                 if (!file.exists()) error("Dosya bulunamadı: $path")
-                if (!file.deleteRecursively()) error("Silinemedi: $path")
+                if (!file.canWrite()) {
+                    val parent = file.parentFile
+                    if (parent != null && !parent.canWrite()) {
+                        error("Klasör yazma iznine sahip değil (Android kısıtlaması)")
+                    } else {
+                        error("Dosya yazma korumalı veya başka bir uygulama tarafından kilitli")
+                    }
+                }
+                if (!file.deleteRecursively()) error("Silme işlemi başarısız (Dosya meşgul olabilir)")
             }
         }
 
@@ -77,49 +86,30 @@ class NormalFileRepository(private val context: Context) : FileRepository {
             }
         }
 
-    override suspend fun copy(
-        source: String,
-        destination: String,
-        onProgress: ((Float) -> Unit)?
-    ): Result<Unit> = withContext(Dispatchers.IO) {
-        runCatching {
-            val src = File(source)
-            if (!src.exists()) error("Kaynak bulunamadı: $source")
-            val dstDir = File(destination)
-            val dst = File(dstDir, src.name)
-
-            if (src.isDirectory) {
-                copyDirectoryRecursive(src, dst, onProgress)
-            } else {
-                copySingleFile(src, dst, onProgress)
+    override suspend fun copy(source: String, destination: String, onProgress: ((Float) -> Unit)?): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val src = File(source)
+                if (!src.exists()) error("Kaynak bulunamadı: $source")
+                val dstDir = File(destination)
+                val dst = File(dstDir, src.name)
+                if (src.isDirectory) copyDirectoryRecursive(src, dst, onProgress)
+                else copySingleFile(src, dst, onProgress)
             }
         }
-    }
 
-    override suspend fun move(
-        source: String,
-        destination: String,
-        onProgress: ((Float) -> Unit)?
-    ): Result<Unit> = withContext(Dispatchers.IO) {
-        runCatching {
-            val src = File(source)
-            val dstDir = File(destination)
-            val dst = File(dstDir, src.name)
-
-            // Try rename first (same filesystem = instant)
-            if (src.renameTo(dst)) return@runCatching
-
-            // Fallback: copy + delete
-            if (src.isDirectory) {
-                copyDirectoryRecursive(src, dst, onProgress)
-            } else {
-                copySingleFile(src, dst, onProgress)
-            }
-            if (!src.deleteRecursively()) {
-                error("Kaynak silinemedi: $source")
+    override suspend fun move(source: String, destination: String, onProgress: ((Float) -> Unit)?): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val src = File(source)
+                val dstDir = File(destination)
+                val dst = File(dstDir, src.name)
+                if (src.renameTo(dst)) return@runCatching
+                if (src.isDirectory) copyDirectoryRecursive(src, dst, onProgress)
+                else copySingleFile(src, dst, onProgress)
+                if (!src.deleteRecursively()) error("Kaynak silinemedi")
             }
         }
-    }
 
     override suspend fun getFileInfo(path: String): Result<FileModel> =
         withContext(Dispatchers.IO) {
@@ -139,23 +129,15 @@ class NormalFileRepository(private val context: Context) : FileRepository {
                 val stat = StatFs(path)
                 val total = stat.totalBytes
                 val free = stat.availableBytes
-                StorageInfo(
-                    totalBytes = total,
-                    freeBytes = free,
-                    usedBytes = total - free
-                )
+                StorageInfo(total, free, total - free)
             }
         }
 
     override suspend fun readText(path: String): Result<String> =
-        withContext(Dispatchers.IO) {
-            runCatching { File(path).readText() }
-        }
+        withContext(Dispatchers.IO) { runCatching { File(path).readText() } }
 
     override suspend fun writeText(path: String, content: String): Result<Unit> =
-        withContext(Dispatchers.IO) {
-            runCatching { File(path).writeText(content) }
-        }
+        withContext(Dispatchers.IO) { runCatching { File(path).writeText(content) } }
 
     override suspend fun calculateChecksum(path: String, algorithm: String): Result<String> =
         withContext(Dispatchers.IO) {
@@ -177,14 +159,8 @@ class NormalFileRepository(private val context: Context) : FileRepository {
             runCatching {
                 val root = File(rootPath)
                 if (!root.exists() || !root.isDirectory) return@runCatching emptyList()
-
                 val lowerQuery = query.lowercase()
-                root.walkTopDown()
-                    .maxDepth(5) // Limit depth for performance
-                    .filter { it.name.lowercase().contains(lowerQuery) }
-                    .take(100) // Limit results
-                    .map { it.toFileModel() }
-                    .toList()
+                root.walkTopDown().maxDepth(5).filter { it.name.lowercase().contains(lowerQuery) }.take(100).map { it.toFileModel() }.toList()
             }
         }
 
@@ -197,59 +173,35 @@ class NormalFileRepository(private val context: Context) : FileRepository {
                     FileCategory.AUDIO -> MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
                     else -> MediaStore.Files.getContentUri("external")
                 }
-
                 val projection = arrayOf(MediaStore.Files.FileColumns.DATA)
-                
                 val selection = when (category) {
-                    FileCategory.DOCUMENTS -> {
-                        "${MediaStore.Files.FileColumns.MIME_TYPE} = 'application/pdf' OR ${MediaStore.Files.FileColumns.MIME_TYPE} LIKE 'text/%'"
-                    }
-                    FileCategory.APKS -> {
-                        "${MediaStore.Files.FileColumns.DATA} LIKE '%.apk'"
-                    }
-                    FileCategory.ARCHIVES -> {
-                        "${MediaStore.Files.FileColumns.DATA} LIKE '%.zip' OR " +
-                        "${MediaStore.Files.FileColumns.DATA} LIKE '%.rar' OR " +
-                        "${MediaStore.Files.FileColumns.DATA} LIKE '%.7z'"
-                    }
+                    FileCategory.DOCUMENTS -> "${MediaStore.Files.FileColumns.MIME_TYPE} = 'application/pdf' OR ${MediaStore.Files.FileColumns.MIME_TYPE} LIKE 'text/%'"
+                    FileCategory.APKS -> "${MediaStore.Files.FileColumns.DATA} LIKE '%.apk'"
+                    FileCategory.ARCHIVES -> "${MediaStore.Files.FileColumns.DATA} LIKE '%.zip' OR ${MediaStore.Files.FileColumns.DATA} LIKE '%.rar' OR ${MediaStore.Files.FileColumns.DATA} LIKE '%.7z'"
                     else -> null
                 }
-
                 val result = mutableListOf<FileModel>()
                 context.contentResolver.query(uri, projection, selection, null, null)?.use { cursor ->
                     val dataIdx = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
                     while (cursor.moveToNext()) {
                         val path = cursor.getString(dataIdx)
                         val file = File(path)
-                        if (file.exists()) {
-                            result.add(file.toFileModel())
-                        }
+                        if (file.exists()) result.add(file.toFileModel())
                     }
                 }
                 result.sortedByDescending { it.lastModified }
             }
         }
 
-    // ── Trash Implementation ──
-    
-    private val trashDir by lazy { 
-        File(context.getExternalFilesDir(null), ".trash").apply { mkdirs() } 
-    }
+    private val trashDir by lazy { File(context.getExternalFilesDir(null), ".trash").apply { mkdirs() } }
 
     override suspend fun moveToTrash(path: String): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
             val src = File(path)
             if (!src.exists()) error("Dosya bulunamadı")
-            
-            // Encode original path in filename: time_originalPathEncoded
-            val encodedPath = android.util.Base64.encodeToString(
-                src.absolutePath.toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP
-            )
+            val encodedPath = android.util.Base64.encodeToString(src.absolutePath.toByteArray(), android.util.Base64.URL_SAFE or android.util.Base64.NO_WRAP)
             val trashFile = File(trashDir, "${System.currentTimeMillis()}_$encodedPath")
-            
-            if (!src.renameTo(trashFile)) {
-                error("Çöp kutusuna taşınamadı")
-            }
+            if (!src.renameTo(trashFile)) error("Çöp kutusuna taşınamadı")
         }
     }
 
@@ -259,13 +211,9 @@ class NormalFileRepository(private val context: Context) : FileRepository {
             val name = trashFile.name
             val encodedPath = name.substringAfter('_')
             val originalPath = String(android.util.Base64.decode(encodedPath, android.util.Base64.URL_SAFE))
-            
             val dst = File(originalPath)
             dst.parentFile?.mkdirs()
-            
-            if (!trashFile.renameTo(dst)) {
-                error("Geri yüklenemedi")
-            }
+            if (!trashFile.renameTo(dst)) error("Geri yüklenemedi")
         }
     }
 
@@ -275,58 +223,46 @@ class NormalFileRepository(private val context: Context) : FileRepository {
                 val name = file.name
                 val encodedPath = name.substringAfter('_')
                 val originalPath = String(android.util.Base64.decode(encodedPath, android.util.Base64.URL_SAFE))
-                
-                FileModel(
-                    name = originalPath.substringAfterLast('/'),
-                    path = file.absolutePath,
-                    isDirectory = file.isDirectory,
-                    size = file.length(),
-                    lastModified = file.lastModified(),
-                    isHidden = false
-                )
+                FileModel(originalPath.substringAfterLast('/'), file.absolutePath, false, file.length(), file.lastModified())
             }?.sortedByDescending { it.lastModified } ?: emptyList()
         }
     }
 
     override suspend fun emptyTrash(): Result<Unit> = withContext(Dispatchers.IO) {
-        runCatching {
-            trashDir.deleteRecursively()
-            trashDir.mkdirs()
-            Unit
+        runCatching { trashDir.deleteRecursively(); trashDir.mkdirs(); Unit }
+    }
+
+    override suspend fun getOwnerApp(path: String): String? = withContext(Dispatchers.IO) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return@withContext null
+        val uri = MediaStore.Files.getContentUri("external")
+        val projection = arrayOf(MediaStore.Files.FileColumns.OWNER_PACKAGE_NAME)
+        val selection = "${MediaStore.Files.FileColumns.DATA} = ?"
+        val selectionArgs = arrayOf(path)
+        context.contentResolver.query(uri, projection, selection, selectionArgs, null)?.use { cursor ->
+            if (cursor.moveToFirst()) cursor.getString(0) else null
         }
     }
 
-    // ── Private helpers ─────────────────────────────────────
-
-    private fun File.toFileModel(): FileModel {
-        return FileModel(
-            name = name,
-            path = absolutePath,
-            isDirectory = isDirectory,
-            size = if (isDirectory) 0L else length(),
-            lastModified = lastModified(),
-            isHidden = isHidden,
-            extension = extension.lowercase(),
-            mimeType = if (isDirectory) "" else FileUtils.getMimeType(absolutePath),
-            childCount = 0 // Optimized: Don't count children during listing
-        )
-    }
+    private fun File.toFileModel(): FileModel = FileModel(
+        name = name, path = absolutePath, isDirectory = isDirectory,
+        size = if (isDirectory) 0L else length(), lastModified = lastModified(),
+        isHidden = isHidden, extension = extension.lowercase(),
+        mimeType = if (isDirectory) "" else FileUtils.getMimeType(absolutePath),
+        childCount = 0
+    )
 
     private fun copySingleFile(src: File, dst: File, onProgress: ((Float) -> Unit)?) {
         dst.parentFile?.mkdirs()
-        val totalBytes = src.length()
-        var copiedBytes = 0L
-
+        val total = src.length()
+        var copied = 0L
         src.inputStream().use { input ->
             dst.outputStream().use { output ->
                 val buffer = ByteArray(8192)
-                var bytesRead: Int
-                while (input.read(buffer).also { bytesRead = it } != -1) {
-                    output.write(buffer, 0, bytesRead)
-                    copiedBytes += bytesRead
-                    if (totalBytes > 0) {
-                        onProgress?.invoke(copiedBytes.toFloat() / totalBytes)
-                    }
+                var n: Int
+                while (input.read(buffer).also { n = it } != -1) {
+                    output.write(buffer, 0, n)
+                    copied += n
+                    if (total > 0) onProgress?.invoke(copied.toFloat() / total)
                 }
             }
         }
@@ -334,26 +270,19 @@ class NormalFileRepository(private val context: Context) : FileRepository {
 
     private fun copyDirectoryRecursive(src: File, dst: File, onProgress: ((Float) -> Unit)?) {
         dst.mkdirs()
-        
-        // Calculate total size without collecting all File objects into a list
-        val totalSize = src.walkTopDown().filter { it.isFile }.fold(0L) { acc, file -> acc + file.length() }
-        var copiedTotal = 0L
-
+        val total = src.walkTopDown().filter { it.isFile }.fold(0L) { acc, f -> acc + f.length() }
+        var copied = 0L
         src.walkTopDown().filter { it.isFile }.forEach { file ->
-            val relativePath = file.relativeTo(src)
-            val target = File(dst, relativePath.path)
+            val target = File(dst, file.relativeTo(src).path)
             target.parentFile?.mkdirs()
-
             file.inputStream().use { input ->
                 target.outputStream().use { output ->
                     val buffer = ByteArray(8192)
-                    var bytesRead: Int
-                    while (input.read(buffer).also { bytesRead = it } != -1) {
-                        output.write(buffer, 0, bytesRead)
-                        copiedTotal += bytesRead
-                        if (totalSize > 0) {
-                            onProgress?.invoke(copiedTotal.toFloat() / totalSize)
-                        }
+                    var n: Int
+                    while (input.read(buffer).also { n = it } != -1) {
+                        output.write(buffer, 0, n)
+                        copied += n
+                        if (total > 0) onProgress?.invoke(copied.toFloat() / total)
                     }
                 }
             }

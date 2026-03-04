@@ -37,4 +37,5 @@ interface FileRepository {
     suspend fun restoreFromTrash(path: String): Result<Unit>
     suspend fun getTrashFiles(): Result<List<FileModel>>
     suspend fun emptyTrash(): Result<Unit>
+    suspend fun getOwnerApp(path: String): String?
 }
