@@ -20,6 +20,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.File
+import java.util.ArrayDeque
 
 class BrowserViewModel(
     private val repository: FileRepository,
@@ -33,8 +35,12 @@ class BrowserViewModel(
     private var historyIndex = 0
     private var searchJob: Job? = null
 
-    private val _snackbarEvent = MutableStateFlow<String?>(null)
-    val snackbarEvent: StateFlow<String?> = _snackbarEvent.asStateFlow()
+    // ── Snackbar & Undo ──
+    data class SnackbarData(val message: String, val actionLabel: String? = null, val onAction: (() -> Unit)? = null)
+    private val _snackbarEvent = MutableStateFlow<SnackbarData?>(null)
+    val snackbarEvent: StateFlow<SnackbarData?> = _snackbarEvent.asStateFlow()
+
+    private val undoStack = ArrayDeque<FileOperation>()
 
     init {
         viewModelScope.launch {
@@ -76,14 +82,27 @@ class BrowserViewModel(
 
     private fun refreshDisplayFiles() {
         val state = _uiState.value
-        if (state.isDeepSearch && state.searchQuery.isNotBlank()) {
-            _uiState.update { it.copy(displayFiles = it.searchResults) }
-            return
+        val filters = state.searchFilters
+        
+        var result = if (state.isDeepSearch && state.searchQuery.isNotBlank()) {
+            state.searchResults
+        } else {
+            state.files
         }
 
-        var result = state.files
         if (!state.showHiddenFiles) {
             result = result.filter { !it.isHidden }
+        }
+
+        // Apply filters
+        if (filters.type != null) {
+            result = result.filter { FileUtils.getFileType(it.path, it.isDirectory) == filters.type }
+        }
+        if (filters.minSize > 0) {
+            result = result.filter { it.size >= filters.minSize }
+        }
+        if (filters.dateAfter > 0) {
+            result = result.filter { it.lastModified >= filters.dateAfter }
         }
 
         if (state.searchQuery.isNotBlank() && !state.isDeepSearch) {
@@ -103,7 +122,7 @@ class BrowserViewModel(
         }
 
         val isCategory = state.currentPath.let { p -> FileCategory.entries.any { it.label == p } }
-        if (state.currentPath != "/" && state.searchQuery.isBlank() && !isCategory) {
+        if (state.currentPath != "/" && state.searchQuery.isBlank() && !isCategory && !state.isDeepSearch) {
             val parentPath = state.currentPath.substringBeforeLast('/', "")
             val target = if (parentPath.isEmpty()) "/" else parentPath
             val parentDir = FileModel(name = "^", path = target, isDirectory = true)
@@ -190,11 +209,36 @@ class BrowserViewModel(
         )
     }
 
+    fun undoLastOperation() {
+        val op = undoStack.pollFirst() ?: return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, operationMessage = "Geri alınıyor…") }
+            when (op) {
+                is FileOperation.Rename -> {
+                    repository.rename(op.newPath, File(op.oldPath).name)
+                }
+                is FileOperation.Move -> {
+                    op.sourcePaths.forEach { path ->
+                        val fileName = File(path).name
+                        val currentPath = File(op.destinationDir, fileName).absolutePath
+                        repository.move(currentPath, File(path).parent ?: "") { }
+                    }
+                }
+                is FileOperation.Trash -> {
+                    op.trashPaths.forEach { path -> repository.restoreFromTrash(path) }
+                }
+            }
+            _uiState.update { it.copy(isLoading = false, operationMessage = null) }
+            refreshCurrentDirectory()
+            showSnackbar("İşlem geri alındı")
+        }
+    }
+
     fun toggleSearch() {
         _uiState.update {
             if (it.isSearchActive) {
                 searchJob?.cancel()
-                it.copy(isSearchActive = false, searchQuery = "", isDeepSearch = false, searchResults = emptyList())
+                it.copy(isSearchActive = false, searchQuery = "", isDeepSearch = false, searchResults = emptyList(), searchFilters = SearchFilters())
             } else it.copy(isSearchActive = true)
         }
         refreshDisplayFiles()
@@ -209,6 +253,16 @@ class BrowserViewModel(
     fun updateSearchQuery(query: String) {
         _uiState.update { it.copy(searchQuery = query) }
         if (_uiState.value.isDeepSearch) performDeepSearch(query) else refreshDisplayFiles()
+    }
+
+    fun updateSearchFilters(filters: SearchFilters) {
+        _uiState.update { it.copy(searchFilters = filters) }
+        val q = _uiState.value.searchQuery
+        if (_uiState.value.isDeepSearch && q.isNotBlank()) {
+            performDeepSearch(q)
+        } else {
+            refreshDisplayFiles()
+        }
     }
 
     private fun performDeepSearch(query: String) {
@@ -244,16 +298,17 @@ class BrowserViewModel(
     fun moveToTrash(path: String) = viewModelScope.launch {
         _uiState.update { it.copy(isLoading = true) }
         repository.moveToTrash(path).fold(
-            onSuccess = { showSnackbar("Çöp kutusuna taşındı"); refreshCurrentDirectory() },
+            onSuccess = {
+                repository.getTrashFiles().onSuccess { trashFiles ->
+                    val lastTrash = trashFiles.firstOrNull()
+                    if (lastTrash != null) {
+                        undoStack.push(FileOperation.Trash(listOf(path), listOf(lastTrash.path)))
+                    }
+                }
+                showSnackbar("Çöpe taşındı", "Geri Al") { undoLastOperation() }
+                refreshCurrentDirectory()
+            },
             onFailure = { e -> showSnackbar("Hata: ${e.message}"); _uiState.update { it.copy(isLoading = false) } }
-        )
-    }
-
-    fun deletePermanently(path: String) = viewModelScope.launch {
-        _uiState.update { it.copy(isLoading = true) }
-        repository.delete(path).fold(
-            onSuccess = { showSnackbar("Kalıcı olarak silindi"); refreshCurrentDirectory() },
-            onFailure = { e -> showSnackbar("Silinemedi: ${e.message}"); _uiState.update { it.copy(isLoading = false) } }
         )
     }
 
@@ -262,25 +317,56 @@ class BrowserViewModel(
         if (selected.isEmpty()) return
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
-            val result = if (permanently) repository.delete(selected) 
-                         else runCatching { selected.forEach { repository.moveToTrash(it) } }.map { Unit }
-            
-            result.fold(
-                onSuccess = {
-                    showSnackbar("${selected.size} öğe ${if(permanently) "silindi" else "çöpe taşındı"}")
-                    _uiState.update { it.copy(selectedFiles = emptySet(), isMultiSelectActive = false) }
-                    refreshCurrentDirectory()
-                },
-                onFailure = { e -> showSnackbar("Hata: ${e.message}"); _uiState.update { it.copy(isLoading = false) } }
-            )
+            if (permanently) {
+                repository.delete(selected).onSuccess {
+                    showSnackbar("${selected.size} öğe silindi")
+                    clearSelection(); refreshCurrentDirectory()
+                }.onFailure { e -> showSnackbar(e.message ?: "Hata") }
+            } else {
+                val trashPaths = mutableListOf<String>()
+                selected.forEach { path ->
+                    repository.moveToTrash(path).onSuccess {
+                        repository.getTrashFiles().onSuccess { it.firstOrNull()?.let { f -> trashPaths.add(f.path) } }
+                    }
+                }
+                undoStack.push(FileOperation.Trash(selected, trashPaths))
+                showSnackbar("${selected.size} öğe çöpe taşındı", "Geri Al") { undoLastOperation() }
+                clearSelection(); refreshCurrentDirectory()
+            }
         }
     }
 
     fun renameFile(path: String, newName: String) = viewModelScope.launch {
         repository.rename(path, newName).fold(
-            onSuccess = { showSnackbar("Yeniden adlandırıldı"); refreshCurrentDirectory() },
+            onSuccess = {
+                undoStack.push(FileOperation.Rename(path, File(File(path).parent, newName).absolutePath))
+                showSnackbar("Yeniden adlandırıldı", "Geri Al") { undoLastOperation() }
+                refreshCurrentDirectory()
+            },
             onFailure = { e -> showSnackbar("Hata: ${e.message}") }
         )
+    }
+
+    fun batchRename(base: String, prefix: String, suffix: String, startNumber: Int) {
+        val selected = _uiState.value.selectedFiles.toList()
+        if (selected.isEmpty()) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, operationMessage = "İşleniyor…") }
+            var counter = startNumber
+            selected.forEach { path ->
+                val f = File(path)
+                val newName = buildString {
+                    append(prefix)
+                    if (base.isNotBlank()) { append(base); append("_"); append(counter.toString().padStart(3, '0')) }
+                    else append(f.nameWithoutExtension)
+                    append(suffix)
+                    if (f.extension.isNotBlank()) { append("."); append(f.extension) }
+                }
+                repository.rename(path, newName).onSuccess { counter++ }
+            }
+            showSnackbar("Toplu adlandırma tamamlandı")
+            clearSelection(); refreshCurrentDirectory()
+        }
     }
 
     fun setClipboard(paths: List<String>, isCut: Boolean) {
@@ -289,12 +375,19 @@ class BrowserViewModel(
 
     fun paste() {
         val clipboard = _uiState.value.clipboard ?: return
-        val destPath = _uiState.value.currentPath
+        val dest = _uiState.value.currentPath
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, operationMessage = "İşleniyor…") }
+            if (clipboard.isCut) {
+                undoStack.push(FileOperation.Move(clipboard.paths, dest))
+            }
             clipboard.paths.forEach { source ->
-                if (clipboard.isCut) repository.move(source, destPath) { p -> _uiState.update { it.copy(operationMessage = "Taşınıyor… %${(p*100).toInt()}") } }
-                else repository.copy(source, destPath) { p -> _uiState.update { it.copy(operationMessage = "Kopyalanıyor… %${(p*100).toInt()}") } }
+                if (clipboard.isCut) repository.move(source, dest) { p -> _uiState.update { it.copy(operationMessage = "Taşınıyor %${(p*100).toInt()}") } }
+                else repository.copy(source, dest) { p -> _uiState.update { it.copy(operationMessage = "Kopyalanıyor %${(p*100).toInt()}") } }
+            }
+            val msg = if (clipboard.isCut) "Taşındı" else "Kopyalandı"
+            showSnackbar("$msg: ${clipboard.paths.size} öğe", if(clipboard.isCut) "Geri Al" else null) {
+                if (clipboard.isCut) undoLastOperation()
             }
             if (clipboard.isCut) _uiState.update { it.copy(clipboard = null) }
             _uiState.update { it.copy(isLoading = false, operationMessage = null) }
@@ -312,13 +405,14 @@ class BrowserViewModel(
     fun clearSelection() = _uiState.update { it.copy(selectedFiles = emptySet(), isMultiSelectActive = false) }
 
     fun setAccessMode(mode: AccessMode) = viewModelScope.launch {
-        preferences.setAccessMode(mode)
-        refreshCurrentDirectory()
+        preferences.setAccessMode(mode); refreshCurrentDirectory()
     }
 
     fun refreshCurrentDirectory() = loadDirectory(_uiState.value.currentPath)
     fun clearError() = _uiState.update { it.copy(error = null) }
-    fun showSnackbar(message: String) { _snackbarEvent.value = message }
+    fun showSnackbar(message: String, action: String? = null, onAction: (() -> Unit)? = null) {
+        _snackbarEvent.value = SnackbarData(message, action, onAction)
+    }
     fun clearSnackbar() { _snackbarEvent.value = null }
 
     fun createActionCallback(context: Context): FileActionCallback = object : FileActionCallback {

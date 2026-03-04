@@ -15,6 +15,7 @@ fun SearchTopBar(
     onQueryChange: (String) -> Unit,
     isDeepSearch: Boolean,
     onDeepSearchToggle: () -> Unit,
+    onFilterClick: () -> Unit,
     onClose: () -> Unit
 ) {
     TopAppBar(
@@ -39,6 +40,9 @@ fun SearchTopBar(
             }
         },
         actions = {
+            IconButton(onClick = onFilterClick) {
+                Icon(Icons.Default.Tune, "Filtrele")
+            }
             IconButton(onClick = onDeepSearchToggle) {
                 Icon(
                     if (isDeepSearch) Icons.Default.FilterList else Icons.Default.FilterListOff,
@@ -63,7 +67,8 @@ fun MultiSelectTopBar(
     onSelectAll: () -> Unit,
     onDeleteSelected: () -> Unit,
     onCopySelected: () -> Unit,
-    onCutSelected: () -> Unit
+    onCutSelected: () -> Unit,
+    onRenameSelected: () -> Unit
 ) {
     TopAppBar(
         title = { Text("$selectedCount seçili") },
@@ -75,6 +80,9 @@ fun MultiSelectTopBar(
         actions = {
             IconButton(onClick = onSelectAll) {
                 Icon(Icons.Default.SelectAll, "Tümünü seç")
+            }
+            IconButton(onClick = onRenameSelected) {
+                Icon(Icons.Default.Edit, "Toplu Yeniden Adlandır")
             }
             IconButton(onClick = onCopySelected) {
                 Icon(Icons.Default.ContentCopy, "Kopyala")

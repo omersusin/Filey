@@ -18,6 +18,7 @@ import filey.app.feature.settings.SettingsScreen
 import filey.app.feature.dashboard.DashboardScreen
 import filey.app.feature.analyzer.StorageAnalyzerScreen
 import filey.app.feature.trash.TrashScreen
+import filey.app.feature.duplicates.DuplicateFinderScreen
 import filey.app.core.model.FileCategory
 import androidx.lifecycle.viewmodel.compose.viewModel
 import filey.app.feature.browser.BrowserViewModel
@@ -39,6 +40,9 @@ fun NavGraph(navController: NavHostController) {
                 },
                 onNavigateToAnalyzer = {
                     navController.navigate("analyzer")
+                },
+                onNavigateToDuplicates = {
+                    navController.navigate("duplicates")
                 }
             )
         }
@@ -51,6 +55,11 @@ fun NavGraph(navController: NavHostController) {
         // ── Trash ──
         composable("trash") {
             TrashScreen(onBack = { navController.popBackStack() })
+        }
+
+        // ── Duplicate Finder ──
+        composable("duplicates") {
+            DuplicateFinderScreen(onBack = { navController.popBackStack() })
         }
 
         // ── Category View ──

@@ -7,6 +7,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -20,6 +21,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -75,9 +77,18 @@ fun BrowserScreen(
 
     // Snackbar event
     LaunchedEffect(snackbarMessage) {
-        snackbarMessage?.let { msg ->
-            snackbarHostState.showSnackbar(msg, duration = SnackbarDuration.Short)
-            viewModel.clearSnackbar()
+        snackbarMessage?.let { data ->
+            scope.launch {
+                val result = snackbarHostState.showSnackbar(
+                    message = data.message,
+                    actionLabel = data.actionLabel,
+                    duration = SnackbarDuration.Short
+                )
+                if (result == SnackbarResult.ActionPerformed) {
+                    data.onAction?.invoke()
+                }
+                viewModel.clearSnackbar()
+            }
         }
     }
 
@@ -107,6 +118,8 @@ fun BrowserScreen(
     var showSortSheet by remember { mutableStateOf(false) }
     var showOptionsFor by remember { mutableStateOf<FileModel?>(null) }
     var showRenameFor by remember { mutableStateOf<FileModel?>(null) }
+    var showBatchRenameDialog by remember { mutableStateOf(false) }
+    var showSearchFilterSheet by remember { mutableStateOf(false) }
     var showDeleteConfirmFor by remember { mutableStateOf<FileModel?>(null) }
     var showPropertiesFor by remember { mutableStateOf<FileModel?>(null) }
     var showDeleteSelectedConfirm by remember { mutableStateOf(false) }
@@ -299,19 +312,20 @@ fun BrowserScreen(
                             onClose = { viewModel.clearSelection() },
                             onSelectAll = { viewModel.selectAll() },
                             onDeleteSelected = { showDeleteSelectedConfirm = true },
+                            onRenameSelected = { showBatchRenameDialog = true },
                             onCopySelected = {
                                 viewModel.setClipboard(
                                     uiState.selectedFiles.toList(), isCut = false
                                 )
                                 viewModel.clearSelection()
-                                viewModel.showSnackbar("${uiState.selectedFiles.size} öğe panoya kopyalandı")
+                                viewModel.showSnackbar("Kopyalandı")
                             },
                             onCutSelected = {
                                 viewModel.setClipboard(
                                     uiState.selectedFiles.toList(), isCut = true
                                 )
                                 viewModel.clearSelection()
-                                viewModel.showSnackbar("${uiState.selectedFiles.size} öğe kesildi")
+                                viewModel.showSnackbar("Kesildi")
                             }
                         )
                     }
@@ -321,9 +335,11 @@ fun BrowserScreen(
                             onQueryChange = { viewModel.updateSearchQuery(it) },
                             isDeepSearch = uiState.isDeepSearch,
                             onDeepSearchToggle = { viewModel.toggleDeepSearch() },
+                            onFilterClick = { showSearchFilterSheet = true },
                             onClose = { viewModel.toggleSearch() }
                         )
-                    }                    else -> {
+                    }
+                    else -> {
                         TopAppBar(
                             title = {
                                 Text(
@@ -353,310 +369,329 @@ fun BrowserScreen(
                                     }
                                 }
                             },
-                        actions = {
-                            if (uiState.accessMode != AccessMode.NORMAL) {
-                                IconButton(onClick = { showAccessModeSheet = true }) {
-                                    Icon(
-                                        imageVector = when (uiState.accessMode) {
-                                            AccessMode.ROOT -> Icons.Default.Security
-                                            AccessMode.SHIZUKU -> Icons.Default.Shield
-                                            else -> Icons.Default.Lock
-                                        },
-                                        contentDescription = uiState.accessMode.name,
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                            }
-
-                            IconButton(onClick = { viewModel.toggleSearch() }) {
-                                Icon(Icons.Default.Search, "Ara")
-                            }
-
-                            IconButton(onClick = {
-                                val newMode = if (uiState.viewMode == ViewMode.LIST)
-                                    ViewMode.GRID else ViewMode.LIST
-                                viewModel.setViewMode(newMode)
-                            }) {
-                                Icon(
-                                    if (uiState.viewMode == ViewMode.LIST) Icons.Default.GridView
-                                    else Icons.AutoMirrored.Filled.ViewList,
-                                    "Görünüm"
-                                )
-                            }
-
-                            IconButton(onClick = { showSortSheet = true }) {
-                                Icon(Icons.Default.Sort, "Sırala")
-                            }
-
-                            IconButton(onClick = { showCreateFolderDialog = true }) {
-                                Icon(Icons.Default.CreateNewFolder, "Yeni Klasör")
-                            }
-
-                            if (uiState.clipboard != null) {
-                                IconButton(onClick = { viewModel.paste() }) {
-                                    Icon(
-                                        Icons.Default.ContentPaste, "Yapıştır",
-                                        tint = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                            }
-
-                            // Overflow
-                            var expanded by remember { mutableStateOf(false) }
-                            IconButton(onClick = { expanded = true }) {
-                                Icon(Icons.Default.MoreVert, "Daha fazla")
-                            }
-                            DropdownMenu(
-                                expanded = expanded,
-                                onDismissRequest = { expanded = false }
-                            ) {
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            if (uiState.showHiddenFiles) "Gizlileri gizle"
-                                            else "Gizlileri göster"
-                                        )
-                                    },
-                                    leadingIcon = {
+                            actions = {
+                                if (uiState.accessMode != AccessMode.NORMAL) {
+                                    IconButton(onClick = { showAccessModeSheet = true }) {
                                         Icon(
-                                            if (uiState.showHiddenFiles) Icons.Default.VisibilityOff
-                                            else Icons.Default.Visibility,
-                                            null
+                                            imageVector = when (uiState.accessMode) {
+                                                AccessMode.ROOT -> Icons.Default.Security
+                                                AccessMode.SHIZUKU -> Icons.Default.Shield
+                                                else -> Icons.Default.Lock
+                                            },
+                                            contentDescription = uiState.accessMode.name,
+                                            tint = MaterialTheme.colorScheme.primary
                                         )
-                                    },
-                                    onClick = {
-                                        viewModel.toggleHiddenFiles()
-                                        expanded = false
                                     }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Erişim modu") },
-                                    leadingIcon = { Icon(Icons.Default.Security, null) },
-                                    onClick = {
-                                        showAccessModeSheet = true
-                                        expanded = false
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Yenile") },
-                                    leadingIcon = { Icon(Icons.Default.Refresh, null) },
-                                    onClick = {
-                                        viewModel.refreshCurrentDirectory()
-                                        expanded = false
-                                    }
-                                )
-                                DropdownMenuItem(
-                                    text = { Text("Ayarlar") },
-                                    leadingIcon = { Icon(Icons.Default.Settings, null) },
-                                    onClick = {
-                                        expanded = false
-                                        onNavigateToSettings()
-                                    }
-                                )
-                            }
-                        }
-                    )
-                }
-            }
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            // PathBar
-            if (!uiState.isSearchActive) {
-                PathBar(
-                    segments = uiState.pathSegments,
-                    onSegmentClick = { segment -> viewModel.navigateTo(segment.fullPath) }
-                )
-            }
+                                }
 
-            // Operation progress
-            AnimatedVisibility(visible = uiState.operationMessage != null) {
-                Column {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                    uiState.operationMessage?.let {
-                        Text(
-                            text = it,
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                                IconButton(onClick = { viewModel.toggleSearch() }) {
+                                    Icon(Icons.Default.Search, "Ara")
+                                }
+
+                                IconButton(onClick = {
+                                    val newMode = if (uiState.viewMode == ViewMode.LIST)
+                                        ViewMode.GRID else ViewMode.LIST
+                                    viewModel.setViewMode(newMode)
+                                }) {
+                                    Icon(
+                                        if (uiState.viewMode == ViewMode.LIST) Icons.Default.GridView
+                                        else Icons.AutoMirrored.Filled.ViewList,
+                                        "Görünüm"
+                                    )
+                                }
+
+                                IconButton(onClick = { showSortSheet = true }) {
+                                    Icon(Icons.Default.Sort, "Sırala")
+                                }
+
+                                IconButton(onClick = { showCreateFolderDialog = true }) {
+                                    Icon(Icons.Default.CreateNewFolder, "Yeni Klasör")
+                                }
+
+                                if (uiState.clipboard != null) {
+                                    IconButton(onClick = { viewModel.paste() }) {
+                                        Icon(
+                                            Icons.Default.ContentPaste, "Yapıştır",
+                                            tint = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+                                }
+
+                                // Overflow
+                                var expanded by remember { mutableStateOf(false) }
+                                IconButton(onClick = { expanded = true }) {
+                                    Icon(Icons.Default.MoreVert, "Daha fazla")
+                                }
+                                DropdownMenu(
+                                    expanded = expanded,
+                                    onDismissRequest = { expanded = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                if (uiState.showHiddenFiles) "Gizlileri gizle"
+                                                else "Gizlileri göster"
+                                            )
+                                        },
+                                        leadingIcon = {
+                                            Icon(
+                                                if (uiState.showHiddenFiles) Icons.Default.VisibilityOff
+                                                else Icons.Default.Visibility,
+                                                null
+                                            )
+                                        },
+                                        onClick = {
+                                            viewModel.toggleHiddenFiles()
+                                            expanded = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Erişim modu") },
+                                        leadingIcon = { Icon(Icons.Default.Security, null) },
+                                        onClick = {
+                                            showAccessModeSheet = true
+                                            expanded = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Yenile") },
+                                        leadingIcon = { Icon(Icons.Default.Refresh, null) },
+                                        onClick = {
+                                            viewModel.refreshCurrentDirectory()
+                                            expanded = false
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text("Ayarlar") },
+                                        leadingIcon = { Icon(Icons.Default.Settings, null) },
+                                        onClick = {
+                                            expanded = false
+                                            onNavigateToSettings()
+                                        }
+                                    )
+                                }
+                            }
                         )
                     }
                 }
             }
-
-            // Content
-            when {
-                !hasPermission -> {
-                    PermissionRequiredContent(
-                        onRequestPermission = { permissionLauncher.launch(storagePermissions()) }
+        ) { padding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+            ) {
+                // PathBar
+                if (!uiState.isSearchActive) {
+                    PathBar(
+                        segments = uiState.pathSegments,
+                        onSegmentClick = { segment -> viewModel.navigateTo(segment.fullPath) }
                     )
                 }
-                uiState.isLoading -> {
-                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        CircularProgressIndicator()
+
+                // Operation progress
+                AnimatedVisibility(visible = uiState.operationMessage != null) {
+                    Column {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        uiState.operationMessage?.let {
+                            Text(
+                                text = it,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                            )
+                        }
                     }
                 }
-                uiState.error != null && uiState.files.isEmpty() -> {
-                    ErrorContent(
-                        message = uiState.error!!,
-                        onRetry = { viewModel.refreshCurrentDirectory() }
-                    )
-                }
-                uiState.displayFiles.isEmpty() -> {
-                    EmptyContent(
-                        isSearchActive = uiState.isSearchActive,
-                        showHiddenFiles = uiState.showHiddenFiles,
-                        onToggleHidden = { viewModel.toggleHiddenFiles() }
-                    )
-                }
-                else -> {
-                    FileContent(
-                        files = uiState.displayFiles,
-                        viewMode = uiState.viewMode,
-                        selectedFiles = uiState.selectedFiles,
-                        isMultiSelectActive = uiState.isMultiSelectActive,
-                        onFileClick = { file ->
-                            if (file.name == "^") {
-                                viewModel.navigateUp()
-                            } else if (uiState.isMultiSelectActive) {
-                                viewModel.toggleFileSelection(file.path)
-                            } else {
-                                handleFileClick(
-                                    file = file,
-                                    viewModel = viewModel,
-                                    onImage = onNavigateToImage,
-                                    onVideo = onNavigateToVideo,
-                                    onAudio = onNavigateToAudio,
-                                    onText = onNavigateToEditor,
-                                    onArchive = onNavigateToArchive,
-                                    context = context,
-                                    callback = actionCallback
-                                )
-                            }
-                        },
-                        onFileLongClick = { file ->
-                            if (file.name != "^") {
-                                if (uiState.isMultiSelectActive) {
+
+                // Content
+                when {
+                    !hasPermission -> {
+                        PermissionRequiredContent(
+                            onRequestPermission = { permissionLauncher.launch(storagePermissions()) }
+                        )
+                    }
+                    uiState.isLoading -> {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator()
+                        }
+                    }
+                    uiState.error != null && uiState.files.isEmpty() -> {
+                        ErrorContent(
+                            message = uiState.error!!,
+                            onRetry = { viewModel.refreshCurrentDirectory() }
+                        )
+                    }
+                    uiState.displayFiles.isEmpty() -> {
+                        EmptyContent(
+                            isSearchActive = uiState.isSearchActive,
+                            showHiddenFiles = uiState.showHiddenFiles,
+                            onToggleHidden = { viewModel.toggleHiddenFiles() }
+                        )
+                    }
+                    else -> {
+                        FileContent(
+                            files = uiState.displayFiles,
+                            viewMode = uiState.viewMode,
+                            selectedFiles = uiState.selectedFiles,
+                            isMultiSelectActive = uiState.isMultiSelectActive,
+                            onFileClick = { file ->
+                                if (file.name == "^") {
+                                    viewModel.navigateUp()
+                                } else if (uiState.isMultiSelectActive) {
                                     viewModel.toggleFileSelection(file.path)
                                 } else {
-                                    showOptionsFor = file
+                                    handleFileClick(
+                                        file = file,
+                                        viewModel = viewModel,
+                                        onImage = onNavigateToImage,
+                                        onVideo = onNavigateToVideo,
+                                        onAudio = onNavigateToAudio,
+                                        onText = onNavigateToEditor,
+                                        onArchive = onNavigateToArchive,
+                                        context = context,
+                                        callback = actionCallback
+                                    )
+                                }
+                            },
+                            onFileLongClick = { file ->
+                                if (file.name != "^") {
+                                    if (uiState.isMultiSelectActive) {
+                                        viewModel.toggleFileSelection(file.path)
+                                    } else {
+                                        showOptionsFor = file
+                                    }
                                 }
                             }
-                        }
-                    )
+                        )
+                    }
                 }
             }
         }
-    }
 
-    // ══════════ DIALOGS & SHEETS ══════════
+        // ══════════ DIALOGS & SHEETS ══════════
 
-    if (showCreateFolderDialog) {
-        CreateFolderDialog(
-            onDismiss = { showCreateFolderDialog = false },
-            onCreate = { name ->
-                viewModel.createFolder(name)
-                showCreateFolderDialog = false
-            }
-        )
-    }
-
-    if (showSortSheet) {
-        SortSheet(
-            currentSort = uiState.sortOption,
-            onSortSelected = { option ->
-                viewModel.setSortOption(option)
-                showSortSheet = false
-            },
-            onDismiss = { showSortSheet = false }
-        )
-    }
-
-    showOptionsFor?.let { file ->
-        FileOptionsSheet(
-            file = file,
-            actions = actionRegistry.getActionsForFile(file),
-            favorites = uiState.favorites,
-            onToggleFavorite = { viewModel.toggleFavorite(it) },
-            callback = actionCallback,
-            onResult = { result ->
-                showOptionsFor = null
-                when (result) {
-                    is ActionResult.RequestDelete -> {
-                        showDeleteConfirmFor = file
-                    }
-                    is ActionResult.RequestRename -> {
-                        showRenameFor = file
-                    }
-                    is ActionResult.RequestProperties -> {
-                        showPropertiesFor = file
-                    }
-                    is ActionResult.Error -> {
-                        viewModel.showSnackbar(result.message)
-                    }
-                    is ActionResult.Success -> { /* handled by callback */ }
-                    ActionResult.Dismissed -> { /* noop */ }
+        if (showCreateFolderDialog) {
+            CreateFolderDialog(
+                onDismiss = { showCreateFolderDialog = false },
+                onCreate = { name ->
+                    viewModel.createFolder(name)
+                    showCreateFolderDialog = false
                 }
-            },
-            onDismiss = { showOptionsFor = null }
-        )
-    }
+            )
+        }
 
-    showRenameFor?.let { file ->
-        RenameDialog(
-            currentName = file.name,
-            onDismiss = { showRenameFor = null },
-            onRename = { newName ->
-                viewModel.renameFile(file.path, newName)
-                showRenameFor = null
-            }
-        )
-    }
+        if (showBatchRenameDialog) {
+            BatchRenameDialog(
+                selectedCount = uiState.selectedFiles.size,
+                onDismiss = { showBatchRenameDialog = false },
+                onRename = { base, prefix, suffix, start ->
+                    viewModel.batchRename(base, prefix, suffix, start)
+                    showBatchRenameDialog = false
+                }
+            )
+        }
 
-    showDeleteConfirmFor?.let { file ->
-        DeleteConfirmDialog(
-            fileName = file.name,
-            onDismiss = { showDeleteConfirmFor = null },
-            onConfirm = {
-                viewModel.moveToTrash(file.path)
-                showDeleteConfirmFor = null
-            }
-        )
-    }
+        if (showSearchFilterSheet) {
+            SearchFilterSheet(
+                filters = uiState.searchFilters,
+                onFiltersChange = { viewModel.updateSearchFilters(it) },
+                onDismiss = { showSearchFilterSheet = false }
+            )
+        }
 
-    if (showDeleteSelectedConfirm) {
-        DeleteConfirmDialog(
-            fileName = "${uiState.selectedFiles.size} öğe",
-            onDismiss = { showDeleteSelectedConfirm = false },
-            onConfirm = {
-                viewModel.deleteSelected(permanently = false)
-                showDeleteSelectedConfirm = false
-            }
-        )
-    }
+        if (showSortSheet) {
+            SortSheet(
+                currentSort = uiState.sortOption,
+                onSortSelected = { option ->
+                    viewModel.setSortOption(option)
+                    showSortSheet = false
+                },
+                onDismiss = { showSortSheet = false }
+            )
+        }
 
-    showPropertiesFor?.let { file ->
-        PropertiesSheet(
-            file = file,
-            onDismiss = { showPropertiesFor = null }
-        )
-    }
+        showOptionsFor?.let { file ->
+            FileOptionsSheet(
+                file = file,
+                actions = actionRegistry.getActionsForFile(file),
+                favorites = uiState.favorites,
+                onToggleFavorite = { viewModel.toggleFavorite(it) },
+                callback = actionCallback,
+                onResult = { result ->
+                    showOptionsFor = null
+                    when (result) {
+                        is ActionResult.RequestDelete -> {
+                            showDeleteConfirmFor = file
+                        }
+                        is ActionResult.RequestRename -> {
+                            showRenameFor = file
+                        }
+                        is ActionResult.RequestProperties -> {
+                            showPropertiesFor = file
+                        }
+                        is ActionResult.Error -> {
+                            viewModel.showSnackbar(result.message)
+                        }
+                        is ActionResult.Success -> { /* handled by callback */ }
+                        ActionResult.Dismissed -> { /* noop */ }
+                    }
+                },
+                onDismiss = { showOptionsFor = null }
+            )
+        }
 
-    if (showAccessModeSheet) {
-        AccessModeSheet(
-            currentMode = uiState.accessMode,
-            context = context,
-            onModeSelected = { mode ->
-                viewModel.setAccessMode(mode)
-                showAccessModeSheet = false
-            },
-            onDismiss = { showAccessModeSheet = false }
-        )
+        showRenameFor?.let { file ->
+            RenameDialog(
+                currentName = file.name,
+                onDismiss = { showRenameFor = null },
+                onRename = { newName ->
+                    viewModel.renameFile(file.path, newName)
+                    showRenameFor = null
+                }
+            )
+        }
+
+        showDeleteConfirmFor?.let { file ->
+            DeleteConfirmDialog(
+                fileName = file.name,
+                onDismiss = { showDeleteConfirmFor = null },
+                onConfirm = {
+                    viewModel.moveToTrash(file.path)
+                    showDeleteConfirmFor = null
+                }
+            )
+        }
+
+        if (showDeleteSelectedConfirm) {
+            DeleteConfirmDialog(
+                fileName = "${uiState.selectedFiles.size} öğe",
+                onDismiss = { showDeleteSelectedConfirm = false },
+                onConfirm = {
+                    viewModel.deleteSelected(permanently = false)
+                    showDeleteSelectedConfirm = false
+                }
+            )
+        }
+
+        showPropertiesFor?.let { file ->
+            PropertiesSheet(
+                file = file,
+                onDismiss = { showPropertiesFor = null }
+            )
+        }
+
+        if (showAccessModeSheet) {
+            AccessModeSheet(
+                currentMode = uiState.accessMode,
+                context = context,
+                onModeSelected = { mode ->
+                    viewModel.setAccessMode(mode)
+                    showAccessModeSheet = false
+                },
+                onDismiss = { showAccessModeSheet = false }
+            )
+        }
     }
-}
 }
 
 // ══════════ HELPERS ══════════
@@ -677,6 +712,7 @@ private fun handleFileClick(
         return
     }
     viewModel.addToRecents(file.path)
+    val scope = kotlinx.coroutines.MainScope() 
     when (FileUtils.getFileType(file.path, false)) {
         FileType.IMAGE -> onImage(file.path)
         FileType.VIDEO -> onVideo(file.path)
@@ -692,9 +728,7 @@ private fun handleFileClick(
 }
 
 private fun checkStoragePermission(): Boolean {
-    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-        Environment.isExternalStorageManager()
-    } else true
+    return true 
 }
 
 private fun storagePermissions(): Array<String> {

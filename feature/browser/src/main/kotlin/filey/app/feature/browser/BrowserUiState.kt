@@ -2,6 +2,12 @@ package filey.app.feature.browser
 
 import filey.app.core.model.*
 
+data class SearchFilters(
+    val type: FileType? = null,
+    val minSize: Long = 0L,
+    val dateAfter: Long = 0L
+)
+
 data class BrowserUiState(
     val currentPath: String = DEFAULT_PATH,
     val files: List<FileModel> = emptyList(),
@@ -14,6 +20,7 @@ data class BrowserUiState(
     val isSearchActive: Boolean = false,
     val isDeepSearch: Boolean = false,
     val searchResults: List<FileModel> = emptyList(),
+    val searchFilters: SearchFilters = SearchFilters(),
 
     // Display
     val viewMode: ViewMode = ViewMode.LIST,

@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CopyAll
 import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -27,6 +28,7 @@ fun DashboardScreen(
     onCategoryClick: (FileCategory) -> Unit,
     onBrowseFiles: () -> Unit,
     onNavigateToAnalyzer: () -> Unit,
+    onNavigateToDuplicates: () -> Unit,
     viewModel: DashboardViewModel = viewModel(factory = DashboardViewModel.Factory)
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -44,6 +46,19 @@ fun DashboardScreen(
         ) {
             // Storage Analysis Card
             StorageCard(uiState, onNavigateToAnalyzer)
+
+            Spacer(Modifier.height(16.dp))
+
+            // Duplicate Finder Button
+            OutlinedButton(
+                onClick = onNavigateToDuplicates,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Icon(Icons.Default.CopyAll, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Kopya Dosyaları Bul ve Temizle")
+            }
 
             Spacer(Modifier.height(24.dp))
 
