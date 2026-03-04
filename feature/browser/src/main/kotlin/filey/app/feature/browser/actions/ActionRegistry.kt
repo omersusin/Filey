@@ -17,6 +17,7 @@ class ActionRegistry(
                 CutAction(),
                 RenameAction(),
                 ShareAction(),
+                CompressAction(),
                 DeleteAction(),
                 PropertiesAction(),
                 ChecksumAction()

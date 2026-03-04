@@ -1,10 +1,12 @@
 package filey.app.feature.archive
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.InsertDriveFile
@@ -12,6 +14,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import filey.app.core.model.FileUtils
@@ -27,6 +30,10 @@ fun ArchiveScreen(
     val snackbarHostState = remember { SnackbarHostState() }
 
     LaunchedEffect(path) { viewModel.loadArchive(path) }
+
+    BackHandler(uiState.isSearchActive) {
+        viewModel.toggleSearch()
+    }
 
     LaunchedEffect(uiState.error) {
         uiState.error?.let { err ->
@@ -44,28 +51,56 @@ fun ArchiveScreen(
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
-            TopAppBar(
-                title = { Text(uiState.fileName, maxLines = 1) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Geri")
+            if (uiState.isSearchActive) {
+                TopAppBar(
+                    title = {
+                        TextField(
+                            value = uiState.searchQuery,
+                            onValueChange = { viewModel.updateSearchQuery(it) },
+                            placeholder = { Text("Arşivde ara…") },
+                            singleLine = true,
+                            colors = TextFieldDefaults.colors(
+                                focusedContainerColor = Color.Transparent,
+                                unfocusedContainerColor = Color.Transparent,
+                                focusedIndicatorColor = Color.Transparent,
+                                unfocusedIndicatorColor = Color.Transparent
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = { viewModel.toggleSearch() }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Aramayı kapat")
+                        }
                     }
-                },
-                actions = {
-                    IconButton(
-                        onClick = {
-                            // Extract to same directory as the archive
-                            val parentDir = path.substringBeforeLast('/')
-                            val archiveName = path.substringAfterLast('/')
-                                .substringBeforeLast('.')
-                            viewModel.extractTo("$parentDir/$archiveName")
-                        },
-                        enabled = !uiState.isExtracting && uiState.entries.isNotEmpty()
-                    ) {
-                        Icon(Icons.Default.Unarchive, "Çıkar")
+                )
+            } else {
+                TopAppBar(
+                    title = { Text(uiState.fileName, maxLines = 1) },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, "Geri")
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = { viewModel.toggleSearch() }) {
+                            Icon(Icons.Default.Search, "Ara")
+                        }
+                        IconButton(
+                            onClick = {
+                                // Extract to same directory as the archive
+                                val parentDir = path.substringBeforeLast('/')
+                                val archiveName = path.substringAfterLast('/')
+                                    .substringBeforeLast('.')
+                                viewModel.extractTo("$parentDir/$archiveName")
+                            },
+                            enabled = !uiState.isExtracting && uiState.entries.isNotEmpty()
+                        ) {
+                            Icon(Icons.Default.Unarchive, "Çıkar")
+                        }
                     }
-                }
-            )
+                )
+            }
         }
     ) { padding ->
         Column(
@@ -97,14 +132,19 @@ fun ArchiveScreen(
                         Text("Arşiv boş veya okunamıyor")
                     }
                 }
+                uiState.filteredEntries.isEmpty() && uiState.isSearchActive -> {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Text("Sonuç bulunamadı")
+                    }
+                }
                 else -> {
                     Text(
-                        "${uiState.entries.size} öğe",
+                        "${uiState.filteredEntries.size} öğe",
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                     )
                     LazyColumn {
-                        items(uiState.entries) { entry ->
+                        items(uiState.filteredEntries) { entry ->
                             ListItem(
                                 leadingContent = {
                                     Icon(

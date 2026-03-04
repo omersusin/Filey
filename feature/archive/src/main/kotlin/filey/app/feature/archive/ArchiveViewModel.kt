@@ -30,13 +30,29 @@ data class ArchiveUiState(
     val isExtracting: Boolean = false,
     val extractProgress: Float = 0f,
     val error: String? = null,
-    val extractSuccess: Boolean = false
-)
+    val extractSuccess: Boolean = false,
+    
+    // Search
+    val searchQuery: String = "",
+    val isSearchActive: Boolean = false
+) {
+    val filteredEntries: List<ArchiveEntry>
+        get() = if (searchQuery.isBlank()) entries 
+                else entries.filter { it.name.contains(searchQuery, ignoreCase = true) }
+}
 
 class ArchiveViewModel : ViewModel() {
 
     private val _uiState = MutableStateFlow(ArchiveUiState())
     val uiState: StateFlow<ArchiveUiState> = _uiState.asStateFlow()
+
+    fun toggleSearch() {
+        _uiState.update { it.copy(isSearchActive = !it.isSearchActive, searchQuery = "") }
+    }
+
+    fun updateSearchQuery(query: String) {
+        _uiState.update { it.copy(searchQuery = query) }
+    }
 
     fun loadArchive(path: String) {
         val fileName = path.substringAfterLast('/')

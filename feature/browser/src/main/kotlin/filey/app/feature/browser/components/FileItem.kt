@@ -13,9 +13,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
+import coil.decode.VideoFrameDecoder
+import coil.request.ImageRequest
 import filey.app.core.model.FileModel
 import filey.app.core.model.FileType
 import filey.app.core.model.FileUtils
@@ -131,13 +137,34 @@ fun FileGridItem(
 
 @Composable
 fun FileIcon(file: FileModel, size: Int) {
-    val (icon, tint) = getFileIconAndColor(file)
-    Icon(
-        imageVector = icon,
-        contentDescription = null,
-        tint = tint,
-        modifier = Modifier.size(size.dp)
-    )
+    val type = FileUtils.getFileType(file.path, file.isDirectory)
+    
+    Box(contentAlignment = Alignment.Center) {
+        // Show icon as fallback background
+        val (icon, tint) = getFileIconAndColor(file)
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = tint.copy(alpha = 0.5f),
+            modifier = Modifier.size(size.dp)
+        )
+
+        if (type == FileType.IMAGE || type == FileType.VIDEO) {
+            AsyncImage(
+                model = ImageRequest.Builder(LocalContext.current)
+                    .data(file.path)
+                    .decoderFactory { result, options, _ -> VideoFrameDecoder(result.source, options) }
+                    .crossfade(true)
+                    .build(),
+                contentDescription = null,
+                modifier = Modifier
+                    .size(size.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(Color.Transparent),
+                contentScale = ContentScale.Crop
+            )
+        }
+    }
 }
 
 @Composable
