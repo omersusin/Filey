@@ -52,11 +52,33 @@ fun FileListItem(
             FileIcon(file = file, size = 40)
         },
         headlineContent = {
-            Text(
-                text = file.name,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            Column {
+                Text(
+                    text = file.name,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (file.tags.isNotEmpty()) {
+                    Row(
+                        modifier = Modifier.padding(top = 2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        file.tags.forEach { tag ->
+                            Surface(
+                                color = getTagColor(tag).copy(alpha = 0.2f),
+                                shape = RoundedCornerShape(4.dp)
+                            ) {
+                                Text(
+                                    text = tag,
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = getTagColor(tag)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         },
         supportingContent = {
             Text(
@@ -166,6 +188,26 @@ fun FileIcon(file: FileModel, size: Int) {
                     .clip(RoundedCornerShape(4.dp))
                     .background(Color.Transparent),
                 contentScale = ContentScale.Crop
+            )
+        }
+    }
+}
+
+@Composable
+private fun getTagColor(tag: String): Color {
+    return when (tag.lowercase()) {
+        "iş" -> Color(0xFF2196F3)
+        "önemli" -> Color(0xFFF44336)
+        "okul" -> Color(0xFF4CAF50)
+        "kişisel" -> Color(0xFFFF9800)
+        "acil" -> Color(0xFFE91E63)
+        else -> {
+            val hash = tag.hashCode()
+            Color(
+                red = (hash and 0xFF0000 shr 16) / 255f,
+                green = (hash and 0x00FF00 shr 8) / 255f,
+                blue = (hash and 0x0000FF) / 255f,
+                alpha = 1f
             )
         }
     }

@@ -11,5 +11,6 @@ data class FileModel(
     val mimeType: String = "",
     val permissions: String = "",
     val owner: String = "",
-    val childCount: Int = 0 // for directories
+    val childCount: Int = 0,
+    val tags: List<String> = emptyList() // Added tags support
 )

@@ -16,6 +16,7 @@ class ActionRegistry(
                 CopyAction(),
                 CutAction(),
                 RenameAction(),
+                NormalizeAction(),
                 ShareAction(),
                 CompressAction(),
                 DeleteAction(),

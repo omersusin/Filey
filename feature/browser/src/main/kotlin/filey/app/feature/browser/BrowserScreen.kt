@@ -670,8 +670,8 @@ fun BrowserScreen(
                 shelf = uiState.shelf,
                 onToggleFavorite = { viewModel.toggleFavorite(it) },
                 onToggleShelf = { viewModel.toggleShelfItem(it) },
-                callback = actionCallback,
-                onResult = { result ->
+                onToggleTag = { path, tag -> viewModel.toggleTag(path, tag) },
+                callback = actionCallback,                onResult = { result ->
                     showOptionsFor = null
                     when (result) {
                         is ActionResult.RequestDelete -> {

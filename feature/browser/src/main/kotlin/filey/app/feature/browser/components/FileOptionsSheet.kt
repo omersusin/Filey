@@ -19,7 +19,7 @@ import filey.app.feature.browser.actions.FileAction
 import filey.app.feature.browser.actions.FileActionCallback
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun FileOptionsSheet(
     file: FileModel,
@@ -28,6 +28,7 @@ fun FileOptionsSheet(
     shelf: Set<String>,
     onToggleFavorite: (String) -> Unit,
     onToggleShelf: (String) -> Unit,
+    onToggleTag: (String, String) -> Unit,
     callback: FileActionCallback,
     onResult: (ActionResult) -> Unit,
     onDismiss: () -> Unit
@@ -98,6 +99,28 @@ fun FileOptionsSheet(
                         Text(if (isInShelf) "Raftan Çıkar" else "Rafa Ekle")
                     }
                 )
+            }
+
+            // Tags (Only if not "^")
+            if (file.name != "^") {
+                Text(
+                    "Etiketler",
+                    style = MaterialTheme.typography.labelLarge,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                )
+                FlowRow(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    listOf("İş", "Önemli", "Okul", "Kişisel", "Acil").forEach { tag ->
+                        FilterChip(
+                            selected = file.tags.contains(tag),
+                            onClick = { onToggleTag(file.path, tag) },
+                            label = { Text(tag) }
+                        )
+                    }
+                }
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             }
 
             // Actions

@@ -150,29 +150,32 @@ class EditorViewModel(
     }
 
     // ── Saving ──────────────────────────────────────────────
-        val state = _uiState.value
-        if (!state.hasChanges) return
+        fun save() {
+            val state = _uiState.value
+            if (!state.hasChanges) return
 
-        _uiState.update { it.copy(isSaving = true, error = null, saveSuccess = false) }
+            _uiState.update { it.copy(isSaving = true, error = null, saveSuccess = false) }
 
-        viewModelScope.launch {
-            val result = repository.writeText(state.path, state.content)
-            result.fold(
-                onSuccess = {
-                    _uiState.update {
-                        it.copy(
-                            isSaving = false,
-                            originalContent = state.content,
-                            saveSuccess = true
-                        )
+            viewModelScope.launch {
+                // Create backup (.bak)
+                repository.writeText("${state.path}.bak", state.originalContent)
+
+                val result = repository.writeText(state.path, state.content)
+                result.fold(
+                    onSuccess = {
+                        _uiState.update { 
+                            it.copy(
+                                isSaving = false, 
+                                saveSuccess = true,
+                                originalContent = state.content
+                            ) 
+                        }
+                    },
+                    onFailure = { e ->
+                        _uiState.update { it.copy(isSaving = false, error = "Kaydedilemedi: ${e.message}") }
                     }
-                },
-                onFailure = { e ->
-                    _uiState.update {
-                        it.copy(isSaving = false, error = "Kaydetme hatası: ${e.message}")
-                    }
-                }
-            )
+                )
+            }
         }
     }
 
