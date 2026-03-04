@@ -1,13 +1,8 @@
 package filey.app.feature.browser.components
 
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import filey.app.core.model.FileModel
-import filey.app.core.model.FileUtils
-
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -24,9 +19,6 @@ import filey.app.core.model.FileUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import android.content.ClipboardManager
-import android.content.ClipData
-import android.content.Context
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -116,7 +108,7 @@ private fun HashRow(label: String, value: String, context: Context) {
             color = MaterialTheme.colorScheme.primary
         )
         Row(
-            verticalAlignment = Alignment.CenterHorizontally,
+            verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth().clickable {
                 val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                 cm.setPrimaryClip(ClipData.newPlainText(label, value))
