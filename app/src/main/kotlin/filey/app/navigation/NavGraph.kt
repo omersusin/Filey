@@ -19,6 +19,7 @@ import filey.app.feature.dashboard.DashboardScreen
 import filey.app.feature.analyzer.StorageAnalyzerScreen
 import filey.app.feature.trash.TrashScreen
 import filey.app.feature.duplicates.DuplicateFinderScreen
+import filey.app.feature.server.ServerScreen
 import filey.app.core.model.FileCategory
 import androidx.lifecycle.viewmodel.compose.viewModel
 import filey.app.feature.browser.BrowserViewModel
@@ -62,6 +63,11 @@ fun NavGraph(navController: NavHostController) {
             DuplicateFinderScreen(onBack = { navController.popBackStack() })
         }
 
+        // ── Share Server ──
+        composable("server") {
+            ServerScreen(onBack = { navController.popBackStack() })
+        }
+
         // ── Category View ──
         composable(
             route = "category/{categoryName}",
@@ -100,6 +106,9 @@ fun NavGraph(navController: NavHostController) {
                 },
                 onNavigateToTrash = {
                     navController.navigate("trash")
+                },
+                onNavigateToServer = {
+                    navController.navigate("server")
                 }
             )
         }
@@ -132,6 +141,9 @@ fun NavGraph(navController: NavHostController) {
                 },
                 onNavigateToTrash = {
                     navController.navigate("trash")
+                },
+                onNavigateToServer = {
+                    navController.navigate("server")
                 }
             )
         }

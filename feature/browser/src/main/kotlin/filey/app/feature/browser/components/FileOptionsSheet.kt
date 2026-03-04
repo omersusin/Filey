@@ -2,6 +2,9 @@ package filey.app.feature.browser.components
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
@@ -9,9 +12,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.StarOutline
 import filey.app.core.model.FileModel
 import filey.app.core.model.FileUtils
 import filey.app.feature.browser.actions.ActionResult
@@ -25,7 +25,9 @@ fun FileOptionsSheet(
     file: FileModel,
     actions: List<FileAction>,
     favorites: Set<String>,
+    shelf: Set<String>,
     onToggleFavorite: (String) -> Unit,
+    onToggleShelf: (String) -> Unit,
     callback: FileActionCallback,
     onResult: (ActionResult) -> Unit,
     onDismiss: () -> Unit
@@ -33,6 +35,7 @@ fun FileOptionsSheet(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val isFavorite = favorites.contains(file.path)
+    val isInShelf = shelf.contains(file.path)
 
     ModalBottomSheet(
         onDismissRequest = onDismiss
@@ -57,7 +60,7 @@ fun FileOptionsSheet(
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
-            // Toggle Favorite (Only for directories and not "^")
+            // Toggle Favorite (Directories)
             if (file.isDirectory && file.name != "^") {
                 ListItem(
                     modifier = Modifier.clickable {
@@ -73,6 +76,26 @@ fun FileOptionsSheet(
                     },
                     headlineContent = {
                         Text(if (isFavorite) "Favorilerden Çıkar" else "Favorilere Ekle")
+                    }
+                )
+            }
+
+            // Toggle Shelf (Files)
+            if (!file.isDirectory && file.name != "^") {
+                ListItem(
+                    modifier = Modifier.clickable {
+                        onToggleShelf(file.path)
+                        onDismiss()
+                    },
+                    leadingContent = {
+                        Icon(
+                            if (isInShelf) Icons.Default.Inventory2 else Icons.Outlined.Inventory2,
+                            contentDescription = null,
+                            tint = if (isInShelf) MaterialTheme.colorScheme.primary else LocalContentColor.current
+                        )
+                    },
+                    headlineContent = {
+                        Text(if (isInShelf) "Raftan Çıkar" else "Rafa Ekle")
                     }
                 )
             }

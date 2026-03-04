@@ -44,9 +44,7 @@ class BrowserViewModel(
 
     init {
         viewModelScope.launch {
-            preferences.viewModeFlow.collect { mode ->
-                _uiState.update { it.copy(viewMode = mode) }
-            }
+            preferences.viewModeFlow.collect { mode -> _uiState.update { it.copy(viewMode = mode) } }
         }
         viewModelScope.launch {
             preferences.sortOptionFlow.collect { sort ->
@@ -61,19 +59,13 @@ class BrowserViewModel(
             }
         }
         viewModelScope.launch {
-            preferences.accessModeFlow.collect { mode ->
-                _uiState.update { it.copy(accessMode = mode) }
-            }
+            preferences.accessModeFlow.collect { mode -> _uiState.update { it.copy(accessMode = mode) } }
         }
         viewModelScope.launch {
-            preferences.favoritesFlow.collect { favs ->
-                _uiState.update { it.copy(favorites = favs) }
-            }
+            preferences.favoritesFlow.collect { favs -> _uiState.update { it.copy(favorites = favs) } }
         }
         viewModelScope.launch {
-            preferences.recentsFlow.collect { recs ->
-                _uiState.update { it.copy(recents = recs) }
-            }
+            preferences.recentsFlow.collect { recs -> _uiState.update { it.copy(recents = recs) } }
         }
 
         val startPath = preferences.getLastPath() ?: BrowserUiState.DEFAULT_PATH
@@ -94,7 +86,6 @@ class BrowserViewModel(
             result = result.filter { !it.isHidden }
         }
 
-        // Apply filters
         if (filters.type != null) {
             result = result.filter { FileUtils.getFileType(it.path, it.isDirectory) == filters.type }
         }
@@ -132,6 +123,37 @@ class BrowserViewModel(
         _uiState.update { it.copy(displayFiles = result) }
     }
 
+    // ── Shelf (Staging Area) ──
+    fun toggleShelfItem(path: String) {
+        _uiState.update { state ->
+            val newShelf = state.shelf.toMutableSet()
+            if (newShelf.contains(path)) newShelf.remove(path) else newShelf.add(path)
+            state.copy(shelf = newShelf)
+        }
+    }
+
+    fun clearShelf() {
+        _uiState.update { it.copy(shelf = emptySet()) }
+    }
+
+    fun pasteFromShelf() {
+        val shelf = _uiState.value.shelf
+        if (shelf.isEmpty()) return
+        val dest = _uiState.value.currentPath
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, operationMessage = "Raftakiler işleniyor…") }
+            shelf.forEach { source ->
+                repository.copy(source, dest) { p -> 
+                    _uiState.update { it.copy(operationMessage = "Kopyalanıyor %${(p*100).toInt()}") }
+                }
+            }
+            showSnackbar("${shelf.size} öğe raftan kopyalandı")
+            _uiState.update { it.copy(isLoading = false, operationMessage = null) }
+            refreshCurrentDirectory()
+        }
+    }
+
+    // ── Rest of Methods ──
     fun toggleFavorite(path: String) = viewModelScope.launch { preferences.toggleFavorite(path) }
     fun addToRecents(path: String) = viewModelScope.launch { preferences.addRecent(path) }
 
@@ -214,9 +236,7 @@ class BrowserViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, operationMessage = "Geri alınıyor…") }
             when (op) {
-                is FileOperation.Rename -> {
-                    repository.rename(op.newPath, File(op.oldPath).name)
-                }
+                is FileOperation.Rename -> { repository.rename(op.newPath, File(op.oldPath).name) }
                 is FileOperation.Move -> {
                     op.sourcePaths.forEach { path ->
                         val fileName = File(path).name
@@ -224,9 +244,7 @@ class BrowserViewModel(
                         repository.move(currentPath, File(path).parent ?: "") { }
                     }
                 }
-                is FileOperation.Trash -> {
-                    op.trashPaths.forEach { path -> repository.restoreFromTrash(path) }
-                }
+                is FileOperation.Trash -> { op.trashPaths.forEach { path -> repository.restoreFromTrash(path) } }
             }
             _uiState.update { it.copy(isLoading = false, operationMessage = null) }
             refreshCurrentDirectory()
@@ -258,11 +276,7 @@ class BrowserViewModel(
     fun updateSearchFilters(filters: SearchFilters) {
         _uiState.update { it.copy(searchFilters = filters) }
         val q = _uiState.value.searchQuery
-        if (_uiState.value.isDeepSearch && q.isNotBlank()) {
-            performDeepSearch(q)
-        } else {
-            refreshDisplayFiles()
-        }
+        if (_uiState.value.isDeepSearch && q.isNotBlank()) performDeepSearch(q) else refreshDisplayFiles()
     }
 
     private fun performDeepSearch(query: String) {
@@ -301,9 +315,7 @@ class BrowserViewModel(
             onSuccess = {
                 repository.getTrashFiles().onSuccess { trashFiles ->
                     val lastTrash = trashFiles.firstOrNull()
-                    if (lastTrash != null) {
-                        undoStack.push(FileOperation.Trash(listOf(path), listOf(lastTrash.path)))
-                    }
+                    if (lastTrash != null) undoStack.push(FileOperation.Trash(listOf(path), listOf(lastTrash.path)))
                 }
                 showSnackbar("Çöpe taşındı", "Geri Al") { undoLastOperation() }
                 refreshCurrentDirectory()
@@ -318,10 +330,7 @@ class BrowserViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             if (permanently) {
-                repository.delete(selected).onSuccess {
-                    showSnackbar("${selected.size} öğe silindi")
-                    clearSelection(); refreshCurrentDirectory()
-                }.onFailure { e -> showSnackbar(e.message ?: "Hata") }
+                repository.delete(selected).onSuccess { showSnackbar("${selected.size} silindi"); clearSelection(); refreshCurrentDirectory() }
             } else {
                 val trashPaths = mutableListOf<String>()
                 selected.forEach { path ->
@@ -330,7 +339,7 @@ class BrowserViewModel(
                     }
                 }
                 undoStack.push(FileOperation.Trash(selected, trashPaths))
-                showSnackbar("${selected.size} öğe çöpe taşındı", "Geri Al") { undoLastOperation() }
+                showSnackbar("${selected.size} çöpe taşındı", "Geri Al") { undoLastOperation() }
                 clearSelection(); refreshCurrentDirectory()
             }
         }
@@ -378,17 +387,13 @@ class BrowserViewModel(
         val dest = _uiState.value.currentPath
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, operationMessage = "İşleniyor…") }
-            if (clipboard.isCut) {
-                undoStack.push(FileOperation.Move(clipboard.paths, dest))
-            }
+            if (clipboard.isCut) undoStack.push(FileOperation.Move(clipboard.paths, dest))
             clipboard.paths.forEach { source ->
                 if (clipboard.isCut) repository.move(source, dest) { p -> _uiState.update { it.copy(operationMessage = "Taşınıyor %${(p*100).toInt()}") } }
                 else repository.copy(source, dest) { p -> _uiState.update { it.copy(operationMessage = "Kopyalanıyor %${(p*100).toInt()}") } }
             }
             val msg = if (clipboard.isCut) "Taşındı" else "Kopyalandı"
-            showSnackbar("$msg: ${clipboard.paths.size} öğe", if(clipboard.isCut) "Geri Al" else null) {
-                if (clipboard.isCut) undoLastOperation()
-            }
+            showSnackbar("$msg: ${clipboard.paths.size} öğe", if(clipboard.isCut) "Geri Al" else null) { if (clipboard.isCut) undoLastOperation() }
             if (clipboard.isCut) _uiState.update { it.copy(clipboard = null) }
             _uiState.update { it.copy(isLoading = false, operationMessage = null) }
             refreshCurrentDirectory()
@@ -404,10 +409,7 @@ class BrowserViewModel(
     fun selectAll() = _uiState.update { it.copy(selectedFiles = it.displayFiles.map { f -> f.path }.toSet(), isMultiSelectActive = true) }
     fun clearSelection() = _uiState.update { it.copy(selectedFiles = emptySet(), isMultiSelectActive = false) }
 
-    fun setAccessMode(mode: AccessMode) = viewModelScope.launch {
-        preferences.setAccessMode(mode); refreshCurrentDirectory()
-    }
-
+    fun setAccessMode(mode: AccessMode) = viewModelScope.launch { preferences.setAccessMode(mode); refreshCurrentDirectory() }
     fun refreshCurrentDirectory() = loadDirectory(_uiState.value.currentPath)
     fun clearError() = _uiState.update { it.copy(error = null) }
     fun showSnackbar(message: String, action: String? = null, onAction: (() -> Unit)? = null) {

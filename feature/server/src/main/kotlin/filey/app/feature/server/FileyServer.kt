@@ -1,0 +1,114 @@
+package filey.app.feature.server
+
+import android.content.Context
+import android.net.wifi.WifiManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.*
+import java.net.ServerSocket
+import java.net.Socket
+import java.net.URLDecoder
+import java.util.*
+
+class FileyServer(private val context: Context) {
+
+    private var serverSocket: ServerSocket? = null
+    private var isRunning = false
+
+    fun getIpAddress(): String {
+        val wm = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+        val ip = wm.connectionInfo.ipAddress
+        return String.format(
+            Locale.US, "%d.%d.%d.%d",
+            ip and 0xff, ip shr 8 and 0xff, ip shr 16 and 0xff, ip shr 24 and 0xff
+        )
+    }
+
+    suspend fun start(port: Int = 8080) = withContext(Dispatchers.IO) {
+        try {
+            serverSocket = ServerSocket(port)
+            isRunning = true
+            while (isRunning) {
+                val client = serverSocket?.accept() ?: break
+                handleClient(client)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    fun stop() {
+        isRunning = false
+        serverSocket?.close()
+        serverSocket = null
+    }
+
+    private fun handleClient(socket: Socket) {
+        Thread {
+            try {
+                val input = BufferedReader(InputStreamReader(socket.getInputStream()))
+                val line = input.readLine() ?: return@Thread
+                val parts = line.split(" ")
+                if (parts.size < 2) return@Thread
+                
+                val rawPath = URLDecoder.decode(parts[1], "UTF-8")
+                val path = if (rawPath == "/") "/storage/emulated/0" else rawPath
+                
+                val file = File(path)
+                val output = DataOutputStream(socket.getOutputStream())
+
+                if (file.exists()) {
+                    if (file.isDirectory) {
+                        sendDirectoryListing(output, file)
+                    } else {
+                        sendFile(output, file)
+                    }
+                } else {
+                    sendError(output, "404 Not Found")
+                }
+                socket.close()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }.start()
+    }
+
+    private fun sendDirectoryListing(out: DataOutputStream, dir: File) {
+        val html = buildString {
+            append("<html><head><meta charset='UTF-8'><title>Filey Server</title>")
+            append("<style>body{font-family:sans-serif;padding:20px} a{display:block;padding:8px;text-decoration:none;border-bottom:1px solid #eee} a:hover{background:#f5f5f5}</style>")
+            append("</head><body>")
+            append("<h1>${dir.name}</h1>")
+            append("<a href='${dir.parent ?: "/"}'>.. [Üst Dizin]</a>")
+            dir.listFiles()?.sortedBy { !it.isDirectory }?.forEach { file ->
+                val icon = if (file.isDirectory) "📁" else "📄"
+                append("<a href='${file.absolutePath}'>$icon ${file.name}</a>")
+            }
+            append("</body></html>")
+        }
+        val header = "HTTP/1.1 200 OK
+Content-Type: text/html
+Content-Length: ${html.length}
+
+"
+        out.writeBytes(header)
+        out.writeBytes(html)
+    }
+
+    private fun sendFile(out: DataOutputStream, file: File) {
+        val header = "HTTP/1.1 200 OK
+Content-Type: application/octet-stream
+Content-Length: ${file.length()}
+Content-Disposition: attachment; filename="${file.name}"
+
+"
+        out.writeBytes(header)
+        file.inputStream().use { it.copyTo(out) }
+    }
+
+    private fun sendError(out: DataOutputStream, error: String) {
+        out.writeBytes("HTTP/1.1 $error
+
+")
+    }
+}

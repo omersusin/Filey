@@ -11,7 +11,7 @@ data class SearchFilters(
 data class BrowserUiState(
     val currentPath: String = DEFAULT_PATH,
     val files: List<FileModel> = emptyList(),
-    val displayFiles: List<FileModel> = emptyList(), // Pre-calculated for performance
+    val displayFiles: List<FileModel> = emptyList(),
     val isLoading: Boolean = false,
     val error: String? = null,
 
@@ -31,8 +31,9 @@ data class BrowserUiState(
     val selectedFiles: Set<String> = emptySet(),
     val isMultiSelectActive: Boolean = false,
 
-    // Clipboard
+    // Clipboard & Shelf
     val clipboard: ClipboardData? = null,
+    val shelf: Set<String> = emptySet(), // Files in the staging area
 
     // Navigation
     val pathSegments: List<PathSegment> = emptyList(),
@@ -59,7 +60,7 @@ data class BrowserUiState(
     }
 }
 
-// Sort helpers — directories always first
+// Sort helpers
 fun <T : Comparable<T>> dirFirstThen(
     selector: (FileModel) -> T
 ): Comparator<FileModel> =

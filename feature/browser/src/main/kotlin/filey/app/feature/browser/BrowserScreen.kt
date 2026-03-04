@@ -44,6 +44,7 @@ fun BrowserScreen(
     onNavigateToSettings: () -> Unit,
     onNavigateToDashboard: () -> Unit,
     onNavigateToTrash: () -> Unit,
+    onNavigateToServer: () -> Unit,
     viewModel: BrowserViewModel = viewModel(factory = BrowserViewModel.Factory)
 ) {
     val context = LocalContext.current
@@ -152,6 +153,17 @@ fun BrowserScreen(
                         scope.launch { drawerState.close() }
                     },
                     icon = { Icon(Icons.Default.Delete, null) },
+                    modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                )
+
+                NavigationDrawerItem(
+                    label = { Text("Dosya Paylaşımı") },
+                    selected = false,
+                    onClick = {
+                        onNavigateToServer()
+                        scope.launch { drawerState.close() }
+                    },
+                    icon = { Icon(Icons.Default.Language, null) },
                     modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
                 )
 
@@ -481,6 +493,39 @@ fun BrowserScreen(
                     .fillMaxSize()
                     .padding(padding)
             ) {
+                // Shelf Bar (Persistent staging area)
+                AnimatedVisibility(visible = uiState.shelf.isNotEmpty()) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.tertiaryContainer,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Default.Inventory2, null, tint = MaterialTheme.colorScheme.onTertiaryContainer)
+                            Spacer(Modifier.width(12.dp))
+                            Text(
+                                "Rafta ${uiState.shelf.size} öğe var",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                modifier = Modifier.weight(1f)
+                            )
+                            TextButton(onClick = { viewModel.clearShelf() }) {
+                                Text("Temizle", color = MaterialTheme.colorScheme.onTertiaryContainer)
+                            }
+                            Button(
+                                onClick = { viewModel.pasteFromShelf() },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.tertiary
+                                )
+                            ) {
+                                Text("Buraya Koy")
+                            }
+                        }
+                    }
+                }
+
                 // PathBar
                 if (!uiState.isSearchActive) {
                     PathBar(
@@ -615,7 +660,9 @@ fun BrowserScreen(
                 file = file,
                 actions = actionRegistry.getActionsForFile(file),
                 favorites = uiState.favorites,
+                shelf = uiState.shelf,
                 onToggleFavorite = { viewModel.toggleFavorite(it) },
+                onToggleShelf = { viewModel.toggleShelfItem(it) },
                 callback = actionCallback,
                 onResult = { result ->
                     showOptionsFor = null
