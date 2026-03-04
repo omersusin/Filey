@@ -112,6 +112,33 @@ fun SettingsScreen(
                     }
                 }
             )
+
+            Spacer(Modifier.weight(1f))
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+
+            Text(
+                "Uygulama Hakkında",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+
+            ListItem(
+                headlineContent = { Text("Filey") },
+                supportingContent = { Text("Modern Dosya Yöneticisi") },
+                trailingContent = {
+                    Text(
+                        "v1.0.0",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            )
+
+            ListItem(
+                headlineContent = { Text("Geliştirici") },
+                supportingContent = { Text("omersusin") }
+            )
         }
     }
 }

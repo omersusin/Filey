@@ -6,13 +6,15 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -66,6 +68,10 @@ fun EditorScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = { viewModel.toggleSearch() }) {
+                        Icon(Icons.Default.Search, "Ara")
+                    }
+
                     if (uiState.isSaving) {
                         CircularProgressIndicator(
                             modifier = Modifier
@@ -91,45 +97,149 @@ fun EditorScreen(
             )
         }
     ) { padding ->
-        when {
-            uiState.isLoading -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
-                    contentAlignment = Alignment.Center
-                ) {
-                    CircularProgressIndicator()
-                }
-            }
-            uiState.error != null && uiState.content.isEmpty() -> {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = uiState.error ?: "Bilinmeyen hata",
-                        color = MaterialTheme.colorScheme.error
-                    )
-                }
-            }
-            else -> {
-                BasicTextField(
-                    value = uiState.content,
-                    onValueChange = { viewModel.updateContent(it) },
-                    textStyle = TextStyle(
-                        fontFamily = FontFamily.Monospace,
-                        fontSize = 14.sp,
-                        color = MaterialTheme.colorScheme.onSurface
-                    ),
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding)
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
-                        .verticalScroll(rememberScrollState())
+        Column(modifier = Modifier.padding(padding)) {
+            if (uiState.isSearchOpen) {
+                SearchReplaceBar(
+                    query = uiState.searchQuery,
+                    onQueryChange = { viewModel.updateSearchQuery(it) },
+                    replace = uiState.replaceQuery,
+                    onReplaceChange = { viewModel.updateReplaceQuery(it) },
+                    results = uiState.searchResults,
+                    currentIndex = uiState.currentMatchIndex,
+                    onNext = { viewModel.nextMatch() },
+                    onPrev = { viewModel.previousMatch() },
+                    onReplaceCurrent = { viewModel.replaceCurrent() },
+                    onReplaceAll = { viewModel.replaceAll() }
                 )
+            }
+
+            when {
+                uiState.isLoading -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
+                }
+                uiState.error != null && uiState.content.isEmpty() -> {
+                    Box(
+                        modifier = Modifier.fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = uiState.error ?: "Bilinmeyen hata",
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+                else -> {
+                    Row(modifier = Modifier.fillMaxSize()) {
+                        // Line numbers
+                        val scrollState = rememberScrollState()
+                        val lineCount = uiState.content.lines().size
+                        
+                        Column(
+                            modifier = Modifier
+                                .width(40.dp)
+                                .fillMaxHeight()
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                                .verticalScroll(scrollState)
+                                .padding(vertical = 8.dp),
+                            horizontalAlignment = Alignment.End
+                        ) {
+                            for (i in 1..lineCount) {
+                                Text(
+                                    text = "$i",
+                                    style = TextStyle(
+                                        fontFamily = FontFamily.Monospace,
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                    ),
+                                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                                    textAlign = TextAlign.End
+                                )
+                            }
+                        }
+
+                        BasicTextField(
+                            value = uiState.content,
+                            onValueChange = { viewModel.updateContent(it) },
+                            textStyle = TextStyle(
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 14.sp,
+                                color = MaterialTheme.colorScheme.onSurface
+                            ),
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 8.dp, vertical = 8.dp)
+                                .verticalScroll(scrollState)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SearchReplaceBar(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    replace: String,
+    onReplaceChange: (String) -> Unit,
+    results: List<Int>,
+    currentIndex: Int,
+    onNext: () -> Unit,
+    onPrev: () -> Unit,
+    onReplaceCurrent: () -> Unit,
+    onReplaceAll: () -> Unit
+) {
+    Surface(
+        tonalElevation = 2.dp,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextField(
+                    value = query,
+                    onValueChange = onQueryChange,
+                    placeholder = { Text("Bul…") },
+                    modifier = Modifier.weight(1f),
+                    trailingIcon = {
+                        if (results.isNotEmpty()) {
+                            Text(
+                                "${currentIndex + 1}/${results.size}",
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                        }
+                    },
+                    singleLine = true,
+                    textStyle = TextStyle(fontSize = 14.sp)
+                )
+                IconButton(onClick = onPrev, enabled = results.isNotEmpty()) {
+                    Icon(Icons.Default.KeyboardArrowUp, null)
+                }
+                IconButton(onClick = onNext, enabled = results.isNotEmpty()) {
+                    Icon(Icons.Default.KeyboardArrowDown, null)
+                }
+            }
+            Spacer(Modifier.height(4.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextField(
+                    value = replace,
+                    onValueChange = onReplaceChange,
+                    placeholder = { Text("Değiştir…") },
+                    modifier = Modifier.weight(1f),
+                    singleLine = true,
+                    textStyle = TextStyle(fontSize = 14.sp)
+                )
+                TextButton(onClick = onReplaceCurrent, enabled = currentIndex != -1) {
+                    Text("Değiştir")
+                }
+                TextButton(onClick = onReplaceAll, enabled = query.isNotEmpty()) {
+                    Text("Tümünü")
+                }
             }
         }
     }

@@ -21,7 +21,14 @@ data class EditorUiState(
     val isLoading: Boolean = false,
     val isSaving: Boolean = false,
     val error: String? = null,
-    val saveSuccess: Boolean = false
+    val saveSuccess: Boolean = false,
+
+    // Search & Replace
+    val isSearchOpen: Boolean = false,
+    val searchQuery: String = "",
+    val replaceQuery: String = "",
+    val searchResults: List<Int> = emptyList(), // indices of matches
+    val currentMatchIndex: Int = -1
 ) {
     val hasChanges: Boolean get() = content != originalContent
 }
@@ -62,7 +69,87 @@ class EditorViewModel(
         _uiState.update { it.copy(content = newContent, saveSuccess = false) }
     }
 
-    fun save() {
+    // ── Search & Replace ────────────────────────────────────
+
+    fun toggleSearch() {
+        _uiState.update { 
+            it.copy(
+                isSearchOpen = !it.isSearchOpen,
+                searchQuery = if (!it.isSearchOpen) "" else it.searchQuery,
+                searchResults = if (!it.isSearchOpen) emptyList() else it.searchResults,
+                currentMatchIndex = -1
+            )
+        }
+    }
+
+    fun updateSearchQuery(query: String) {
+        _uiState.update { state ->
+            val results = if (query.isNotBlank()) {
+                findAllOccurrences(state.content, query)
+            } else {
+                emptyList()
+            }
+            state.copy(
+                searchQuery = query,
+                searchResults = results,
+                currentMatchIndex = if (results.isNotEmpty()) 0 else -1
+            )
+        }
+    }
+
+    fun updateReplaceQuery(query: String) {
+        _uiState.update { it.copy(replaceQuery = query) }
+    }
+
+    fun nextMatch() {
+        _uiState.update { state ->
+            if (state.searchResults.isEmpty()) return@update state
+            val next = (state.currentMatchIndex + 1) % state.searchResults.size
+            state.copy(currentMatchIndex = next)
+        }
+    }
+
+    fun previousMatch() {
+        _uiState.update { state ->
+            if (state.searchResults.isEmpty()) return@update state
+            val prev = if (state.currentMatchIndex <= 0) 
+                state.searchResults.lastIndex else state.currentMatchIndex - 1
+            state.copy(currentMatchIndex = prev)
+        }
+    }
+
+    fun replaceCurrent() {
+        val state = _uiState.value
+        if (state.currentMatchIndex == -1 || state.searchQuery.isBlank()) return
+
+        val matchStart = state.searchResults[state.currentMatchIndex]
+        val newContent = state.content.substring(0, matchStart) + 
+                         state.replaceQuery + 
+                         state.content.substring(matchStart + state.searchQuery.length)
+        
+        updateContent(newContent)
+        updateSearchQuery(state.searchQuery) // refresh matches
+    }
+
+    fun replaceAll() {
+        val state = _uiState.value
+        if (state.searchQuery.isBlank()) return
+        val newContent = state.content.replace(state.searchQuery, state.replaceQuery)
+        updateContent(newContent)
+        updateSearchQuery(state.searchQuery)
+    }
+
+    private fun findAllOccurrences(text: String, query: String): List<Int> {
+        val indices = mutableListOf<Int>()
+        var index = text.indexOf(query, 0, ignoreCase = true)
+        while (index != -1) {
+            indices.add(index)
+            index = text.indexOf(query, index + query.length, ignoreCase = true)
+        }
+        return indices
+    }
+
+    // ── Saving ──────────────────────────────────────────────
         val state = _uiState.value
         if (!state.hasChanges) return
 
