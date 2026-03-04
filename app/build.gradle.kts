@@ -57,6 +57,7 @@ dependencies {
     implementation(project(":feature:server"))
     implementation(project(":feature:settings"))
     implementation(project(":feature:trash"))
+    implementation(project(":feature:vault"))
     implementation(project(":feature:viewer"))
 
     implementation(libs.androidx.core.ktx)

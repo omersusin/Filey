@@ -42,6 +42,7 @@ fun BrowserScreen(
     onNavigateToAudio: (String) -> Unit,
     onNavigateToEditor: (String) -> Unit,
     onNavigateToArchive: (String) -> Unit,
+    onNavigateToPdf: (String) -> Unit,
     onNavigateToSettings: () -> Unit,
     onNavigateToDashboard: () -> Unit,
     onNavigateToTrash: () -> Unit,
@@ -121,8 +122,10 @@ fun BrowserScreen(
                         onAudio = onNavigateToAudio,
                         onText = onNavigateToEditor,
                         onArchive = onNavigateToArchive,
+                        onPdf = onNavigateToPdf,
                         context = context,
                         callback = actionCallback
+
                     )
                     scope.launch { drawerState.close() }
                 }
@@ -208,8 +211,10 @@ fun BrowserScreen(
                                             onAudio = onNavigateToAudio,
                                             onText = onNavigateToEditor,
                                             onArchive = onNavigateToArchive,
+                                            onPdf = onNavigateToPdf,
                                             context = context,
                                             callback = actionCallback
+
                                         )
                                     }
                                 },
@@ -299,6 +304,7 @@ private fun handleFileClick(
     onAudio: (String) -> Unit,
     onText: (String) -> Unit,
     onArchive: (String) -> Unit,
+    onPdf: (String) -> Unit,
     context: android.content.Context,
     callback: filey.app.feature.browser.actions.FileActionCallback
 ) {
@@ -314,6 +320,7 @@ private fun handleFileClick(
         FileType.AUDIO -> onAudio(file.path)
         FileType.TEXT -> onText(file.path)
         FileType.ARCHIVE -> onArchive(file.path)
+        FileType.PDF -> onPdf(file.path)
         else -> {
             scope.launch {
                 OpenWithAction().execute(context, file, callback)

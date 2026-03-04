@@ -24,6 +24,9 @@ import filey.app.feature.organizer.ui.OrganizerScreen
 import filey.app.feature.settings.SettingsScreen
 import filey.app.feature.dashboard.DashboardScreen
 
+import filey.app.feature.vault.ui.VaultScreen
+import filey.app.feature.viewer.PdfViewerScreen
+
 @Composable
 fun NavGraph(navController: NavHostController) {
     NavHost(
@@ -48,12 +51,32 @@ fun NavGraph(navController: NavHostController) {
                 onNavigateToOrganizer = {
                     navController.navigate("organizer")
                 },
+                onNavigateToVault = {
+                    navController.navigate("vault")
+                },
                 onNavigateToTrash = {
                     navController.navigate("trash")
                 },
                 onNavigateToServer = {
                     navController.navigate("server")
                 }
+            )
+        }
+
+        // ── Vault ──
+        composable("vault") {
+            VaultScreen(onBack = { navController.popBackStack() })
+        }
+
+        // ── PDF Viewer ──
+        composable(
+            route = "pdf_viewer/{path}",
+            arguments = listOf(navArgument("path") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val path = Uri.decode(backStackEntry.arguments?.getString("path") ?: "")
+            PdfViewerScreen(
+                path = path,
+                onBack = { navController.popBackStack() }
             )
         }
 
