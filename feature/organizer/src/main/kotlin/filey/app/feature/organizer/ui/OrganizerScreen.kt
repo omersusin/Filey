@@ -14,19 +14,25 @@ import androidx.compose.ui.unit.dp
 import filey.app.feature.organizer.engine.OrganizerEngine
 import filey.app.feature.organizer.model.OrganizerRule
 import kotlinx.coroutines.launch
+import filey.app.feature.organizer.worker.OrganizerWorkManager
+import androidx.compose.ui.platform.LocalContext
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OrganizerScreen(
     onNavigateBack: () -> Unit
 ) {
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val engine = remember { OrganizerEngine() }
-    
+
     var rules by remember { mutableStateOf(engine.getDefaultRules()) }
     var isOrganizing by remember { mutableStateOf(false) }
     var progressMessage by remember { mutableStateOf("") }
     var showAddDialog by remember { mutableStateOf(false) }
+
+    // Simulation of persistent state (should be in DataStore normally)
+    var isBackgroundWorkEnabled by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -43,13 +49,37 @@ fun OrganizerScreen(
                     }
                 }
             )
-        },
-        floatingActionButton = {
-            if (!isOrganizing) {
-                ExtendedFloatingActionButton(
-                    onClick = {
-                        isOrganizing = true
-                        scope.launch {
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            // Background Task Switch
+            ListItem(
+                headlineContent = { Text("Otomatik Temizlik (Arka Plan)") },
+                supportingContent = { Text("İndirilenleri her 12 saatte bir otomatik düzenle") },
+                leadingContent = { Icon(Icons.Default.AutoMode, null) },
+                trailingContent = {
+                    Switch(
+                        checked = isBackgroundWorkEnabled,
+                        onCheckedChange = { enabled ->
+                            isBackgroundWorkEnabled = enabled
+                            if (enabled) {
+                                OrganizerWorkManager.schedulePeriodicWork(context)
+                            } else {
+                                OrganizerWorkManager.cancelWork(context)
+                            }
+                        }
+                    )
+                }
+            )
+
+            HorizontalDivider()
+
+            if (isOrganizing) {
+
                             val downloadPath = android.os.Environment.getExternalStoragePublicDirectory(
                                 android.os.Environment.DIRECTORY_DOWNLOADS
                             ).absolutePath

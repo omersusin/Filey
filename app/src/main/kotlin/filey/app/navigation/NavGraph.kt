@@ -26,6 +26,7 @@ import filey.app.feature.dashboard.DashboardScreen
 
 import filey.app.feature.vault.ui.VaultScreen
 import filey.app.feature.viewer.PdfViewerScreen
+import filey.app.feature.duplicates.ui.DuplicatesScreen
 
 @Composable
 fun NavGraph(navController: NavHostController) {
@@ -61,6 +62,11 @@ fun NavGraph(navController: NavHostController) {
                     navController.navigate("server")
                 }
             )
+        }
+
+        // ── Duplicates ──
+        composable("duplicates") {
+            DuplicatesScreen(onBack = { navController.popBackStack() })
         }
 
         // ── Vault ──
