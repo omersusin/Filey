@@ -188,10 +188,12 @@ class RootFileRepository : FileRepository {
     override suspend fun getCategoryFiles(category: filey.app.core.model.FileCategory): Result<List<FileModel>> =
         Result.success(emptyList())
 
-    override suspend fun moveToTrash(path: String) = delete(path)
-    override suspend fun restoreFromTrash(path: String) = Result.failure<Unit>(Exception("Not supported"))
-    override suspend fun getTrashFiles() = Result.success(emptyList<FileModel>())
-    override suspend fun emptyTrash() = Result.success(Unit)
+    override suspend fun moveToTrash(path: String): Result<Unit> = delete(path)
+    override suspend fun restoreFromTrash(path: String): Result<Unit> = Result.failure(Exception("Not supported"))
+    override suspend fun getTrashFiles(): Result<List<FileModel>> = Result.success(emptyList())
+    override suspend fun emptyTrash(): Result<Unit> = Result.success(Unit)
+
+    override suspend fun getOwnerApp(path: String): String? = null
 
     private fun String.shellEscape(): String = "'${this.replace("'", "'\\''")}'"
 }

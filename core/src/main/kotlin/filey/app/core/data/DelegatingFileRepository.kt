@@ -49,4 +49,5 @@ class DelegatingFileRepository(
     override suspend fun restoreFromTrash(path: String) = current().restoreFromTrash(path)
     override suspend fun getTrashFiles() = current().getTrashFiles()
     override suspend fun emptyTrash() = current().emptyTrash()
+    override suspend fun getOwnerApp(path: String) = current().getOwnerApp(path)
 }
