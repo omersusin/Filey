@@ -334,11 +334,12 @@ class NormalFileRepository(private val context: Context) : FileRepository {
 
     private fun copyDirectoryRecursive(src: File, dst: File, onProgress: ((Float) -> Unit)?) {
         dst.mkdirs()
-        val allFiles = src.walkTopDown().filter { it.isFile }.toList()
-        val totalSize = allFiles.sumOf { it.length() }
+        
+        // Calculate total size without collecting all File objects into a list
+        val totalSize = src.walkTopDown().filter { it.isFile }.fold(0L) { acc, file -> acc + file.length() }
         var copiedTotal = 0L
 
-        for (file in allFiles) {
+        src.walkTopDown().filter { it.isFile }.forEach { file ->
             val relativePath = file.relativeTo(src)
             val target = File(dst, relativePath.path)
             target.parentFile?.mkdirs()
