@@ -93,3 +93,4 @@ private fun <T : Comparable<T>> dirFirstThenDesc(
     selector: (FileModel) -> T
 ): Comparator<FileModel> =
     compareByDescending<FileModel> { it.isDirectory }.thenByDescending(selector)
+
