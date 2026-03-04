@@ -12,6 +12,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.*
@@ -39,6 +40,7 @@ fun BrowserScreen(
     onNavigateToEditor: (String) -> Unit,
     onNavigateToArchive: (String) -> Unit,
     onNavigateToSettings: () -> Unit,
+    onNavigateToDashboard: () -> Unit,
     viewModel: BrowserViewModel = viewModel(factory = BrowserViewModel.Factory)
 ) {
     val context = LocalContext.current
@@ -116,6 +118,19 @@ fun BrowserScreen(
         drawerContent = {
             ModalDrawerSheet {
                 Spacer(Modifier.height(12.dp))
+
+                NavigationDrawerItem(
+                    label = { Text("Ana Sayfa") },
+                    selected = false,
+                    onClick = {
+                        onNavigateToDashboard()
+                        scope.launch { drawerState.close() }
+                    },
+                    icon = { Icon(Icons.Default.Home, null) },
+                    modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding)
+                )
+
+                HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
                 
                 // Storage Info
                 uiState.storageInfo?.let { info ->
@@ -306,9 +321,17 @@ fun BrowserScreen(
                                 )
                             },
                             navigationIcon = {
-                                if (uiState.canGoBack ||
-                                    uiState.currentPath != BrowserUiState.DEFAULT_PATH
-                                ) {
+                                if (uiState.canGoBack) {
+                                    IconButton(onClick = { viewModel.goBack() }) {
+                                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Geri")
+                                    }
+                                } else if (uiState.currentPath != BrowserUiState.DEFAULT_PATH &&
+                                    uiState.pathSegments.size <= 1) {
+                                    // Categories etc
+                                    IconButton(onClick = onNavigateToDashboard) {
+                                        Icon(Icons.Default.Home, "Ana Sayfa")
+                                    }
+                                } else if (uiState.currentPath != BrowserUiState.DEFAULT_PATH) {
                                     IconButton(onClick = { viewModel.navigateUp() }) {
                                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Geri")
                                     }

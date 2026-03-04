@@ -42,4 +42,6 @@ class DelegatingFileRepository(
         current().calculateChecksum(path, algorithm)
     override suspend fun searchFiles(rootPath: String, query: String) =
         current().searchFiles(rootPath, query)
+    override suspend fun getCategoryFiles(category: filey.app.core.model.FileCategory) =
+        current().getCategoryFiles(category)
 }

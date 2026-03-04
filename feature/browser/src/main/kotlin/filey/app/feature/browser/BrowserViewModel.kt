@@ -181,6 +181,47 @@ class BrowserViewModel(
         }
     }
 
+    fun loadCategory(category: filey.app.core.model.FileCategory) {
+        viewModelScope.launch {
+            _uiState.update {
+                it.copy(
+                    isLoading = true,
+                    error = null,
+                    currentPath = category.label,
+                    pathSegments = listOf(filey.app.core.model.PathSegment(category.label, "")),
+                    canGoBack = true,
+                    canGoForward = false,
+                    selectedFiles = emptySet(),
+                    isMultiSelectActive = false,
+                    isSearchActive = false,
+                    searchQuery = ""
+                )
+            }
+
+            val result = repository.getCategoryFiles(category)
+            result.fold(
+                onSuccess = { files ->
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            files = files,
+                            error = null
+                        )
+                    }
+                },
+                onFailure = { error ->
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            error = error.message ?: "Bilinmeyen hata",
+                            files = emptyList()
+                        )
+                    }
+                }
+            )
+        }
+    }
+
     // ══════════════════════════════════════════════════════════
     // SEARCH
     // ══════════════════════════════════════════════════════════

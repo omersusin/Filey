@@ -2,6 +2,7 @@ package filey.app.navigation
 
 import android.net.Uri
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
@@ -14,13 +15,77 @@ import filey.app.feature.player.AudioPlayerScreen
 import filey.app.feature.player.VideoPlayerScreen
 import filey.app.feature.viewer.ImageViewerScreen
 import filey.app.feature.settings.SettingsScreen
+import filey.app.feature.dashboard.DashboardScreen
+import filey.app.feature.analyzer.StorageAnalyzerScreen
+import filey.app.core.model.FileCategory
+import androidx.lifecycle.viewmodel.compose.viewModel
+import filey.app.feature.browser.BrowserViewModel
 
 @Composable
 fun NavGraph(navController: NavHostController) {
     NavHost(
         navController = navController,
-        startDestination = "browser"
+        startDestination = "dashboard"
     ) {
+        // ── Dashboard ──
+        composable("dashboard") {
+            DashboardScreen(
+                onCategoryClick = { category ->
+                    navController.navigate("category/${category.name}")
+                },
+                onBrowseFiles = {
+                    navController.navigate("browser")
+                },
+                onNavigateToAnalyzer = {
+                    navController.navigate("analyzer")
+                }
+            )
+        }
+
+        // ── Analyzer ──
+        composable("analyzer") {
+            StorageAnalyzerScreen(onBack = { navController.popBackStack() })
+        }
+
+        // ── Category View ──
+        composable(
+            route = "category/{categoryName}",
+            arguments = listOf(navArgument("categoryName") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val catName = backStackEntry.arguments?.getString("categoryName") ?: ""
+            val category = FileCategory.valueOf(catName)
+            val viewModel: BrowserViewModel = viewModel(factory = BrowserViewModel.Factory)
+            
+            LaunchedEffect(category) {
+                viewModel.loadCategory(category)
+            }
+
+            BrowserScreen(
+                viewModel = viewModel,
+                onNavigateToImage = { path ->
+                    navController.navigate("image_viewer/${Uri.encode(path)}")
+                },
+                onNavigateToVideo = { path ->
+                    navController.navigate("video_player/${Uri.encode(path)}")
+                },
+                onNavigateToAudio = { path ->
+                    navController.navigate("audio_player/${Uri.encode(path)}")
+                },
+                onNavigateToEditor = { path ->
+                    navController.navigate("editor/${Uri.encode(path)}")
+                },
+                onNavigateToArchive = { path ->
+                    navController.navigate("archive/${Uri.encode(path)}")
+                },
+                onNavigateToSettings = {
+                    navController.navigate("settings")
+                },
+                onNavigateToDashboard = {
+                    navController.popBackStack("dashboard", false)
+                }
+            )
+        }
+
         // ── Browser ──
         composable("browser") {
             BrowserScreen(
@@ -41,6 +106,11 @@ fun NavGraph(navController: NavHostController) {
                 },
                 onNavigateToSettings = {
                     navController.navigate("settings")
+                },
+                onNavigateToDashboard = {
+                    navController.navigate("dashboard") {
+                        popUpTo("browser") { inclusive = true }
+                    }
                 }
             )
         }

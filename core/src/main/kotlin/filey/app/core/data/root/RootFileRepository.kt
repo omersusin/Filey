@@ -189,6 +189,14 @@ class RootFileRepository : FileRepository {
             }
         }
 
+    override suspend fun getCategoryFiles(category: filey.app.core.model.FileCategory): Result<List<FileModel>> =
+        withContext(Dispatchers.IO) {
+            // Root categories are harder without MediaStore access for root
+            // We could use 'find' but it would be very slow for the entire storage.
+            // For now, return empty or implement a limited search.
+            Result.success(emptyList())
+        }
+
     // ── Parsing helpers ─────────────────────────────────────
 
     private fun parseLsLine(line: String, parentPath: String): FileModel? {

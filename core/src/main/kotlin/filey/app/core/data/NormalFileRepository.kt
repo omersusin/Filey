@@ -1,7 +1,11 @@
 package filey.app.core.data
 
+import android.content.Context
 import android.os.StatFs
+import android.provider.MediaStore
+import filey.app.core.model.FileCategory
 import filey.app.core.model.FileModel
+import filey.app.core.model.FileType
 import filey.app.core.model.FileUtils
 import filey.app.core.model.StorageInfo
 import kotlinx.coroutines.Dispatchers
@@ -10,7 +14,7 @@ import java.io.File
 import java.io.FileInputStream
 import java.security.MessageDigest
 
-class NormalFileRepository : FileRepository {
+class NormalFileRepository(private val context: Context) : FileRepository {
 
     override suspend fun listFiles(path: String): Result<List<FileModel>> =
         withContext(Dispatchers.IO) {
@@ -181,6 +185,48 @@ class NormalFileRepository : FileRepository {
                     .take(100) // Limit results
                     .map { it.toFileModel() }
                     .toList()
+            }
+        }
+
+    override suspend fun getCategoryFiles(category: FileCategory): Result<List<FileModel>> =
+        withContext(Dispatchers.IO) {
+            runCatching {
+                val uri = when (category) {
+                    FileCategory.IMAGES -> MediaStore.Images.Media.EXTERNAL_CONTENT_URI
+                    FileCategory.VIDEOS -> MediaStore.Video.Media.EXTERNAL_CONTENT_URI
+                    FileCategory.AUDIO -> MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+                    else -> MediaStore.Files.getContentUri("external")
+                }
+
+                val projection = arrayOf(MediaStore.Files.FileColumns.DATA)
+                
+                val selection = when (category) {
+                    FileCategory.DOCUMENTS -> {
+                        "${MediaStore.Files.FileColumns.MIME_TYPE} = 'application/pdf' OR ${MediaStore.Files.FileColumns.MIME_TYPE} LIKE 'text/%'"
+                    }
+                    FileCategory.APKS -> {
+                        "${MediaStore.Files.FileColumns.DATA} LIKE '%.apk'"
+                    }
+                    FileCategory.ARCHIVES -> {
+                        "${MediaStore.Files.FileColumns.DATA} LIKE '%.zip' OR " +
+                        "${MediaStore.Files.FileColumns.DATA} LIKE '%.rar' OR " +
+                        "${MediaStore.Files.FileColumns.DATA} LIKE '%.7z'"
+                    }
+                    else -> null
+                }
+
+                val result = mutableListOf<FileModel>()
+                context.contentResolver.query(uri, projection, selection, null, null)?.use { cursor ->
+                    val dataIdx = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns.DATA)
+                    while (cursor.moveToNext()) {
+                        val path = cursor.getString(dataIdx)
+                        val file = File(path)
+                        if (file.exists()) {
+                            result.add(file.toFileModel())
+                        }
+                    }
+                }
+                result.sortedByDescending { it.lastModified }
             }
         }
 

@@ -30,4 +30,5 @@ interface FileRepository {
     suspend fun writeText(path: String, content: String): Result<Unit>
     suspend fun calculateChecksum(path: String, algorithm: String = "SHA-256"): Result<String>
     suspend fun searchFiles(rootPath: String, query: String): Result<List<FileModel>>
+    suspend fun getCategoryFiles(category: filey.app.core.model.FileCategory): Result<List<FileModel>>
 }

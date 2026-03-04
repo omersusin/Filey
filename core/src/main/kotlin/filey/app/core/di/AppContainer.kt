@@ -18,7 +18,7 @@ class AppContainer(private val context: Context) {
     }
 
     private val normalRepository: FileRepository by lazy {
-        NormalFileRepository()
+        NormalFileRepository(context)
     }
 
     private val rootRepository: FileRepository by lazy {

@@ -167,6 +167,12 @@ class ShizukuFileRepository : FileRepository {
             }
         }
 
+    override suspend fun getCategoryFiles(category: filey.app.core.model.FileCategory): Result<List<FileModel>> =
+        withContext(Dispatchers.IO) {
+            // Same as root, fallback to empty for now
+            Result.success(emptyList())
+        }
+
     // ── Parsing (same logic as RootFileRepository) ──────────
 
     private fun parseLsLine(line: String, parentPath: String): FileModel? {
