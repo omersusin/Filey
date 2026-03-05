@@ -46,7 +46,6 @@ fun AudioPlayerScreen(
     var currentPosition by remember { mutableLongStateOf(0L) }
     var duration by remember { mutableLongStateOf(0L) }
 
-    // Update position every 200ms
     LaunchedEffect(isPlaying) {
         while (isPlaying) {
             currentPosition = exoPlayer.currentPosition
@@ -55,7 +54,6 @@ fun AudioPlayerScreen(
         }
     }
 
-    // Listen to player state
     DisposableEffect(exoPlayer) {
         val listener = object : Player.Listener {
             override fun onIsPlayingChanged(playing: Boolean) {
@@ -92,7 +90,6 @@ fun AudioPlayerScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            // Album art or music icon
             Box(Modifier.size(240.dp), contentAlignment = Alignment.Center) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
@@ -101,7 +98,7 @@ fun AudioPlayerScreen(
                 ) {
                     Icon(
                         Icons.Default.MusicNote,
-                        contentDescription = null,
+                        null,
                         modifier = Modifier.size(120.dp).padding(48.dp),
                         tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
                     )
@@ -119,7 +116,6 @@ fun AudioPlayerScreen(
 
             Spacer(Modifier.height(32.dp))
 
-            // File name
             Text(
                 text = file.nameWithoutExtension,
                 style = MaterialTheme.typography.titleLarge,
@@ -128,7 +124,6 @@ fun AudioPlayerScreen(
 
             Spacer(Modifier.height(32.dp))
 
-            // Seekbar
             Slider(
                 value = if (duration > 0) currentPosition.toFloat() / duration else 0f,
                 onValueChange = { fraction ->
@@ -137,7 +132,6 @@ fun AudioPlayerScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            // Time labels
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -148,19 +142,16 @@ fun AudioPlayerScreen(
 
             Spacer(Modifier.height(24.dp))
 
-            // Controls
             Row(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // -10s
                 IconButton(onClick = {
                     exoPlayer.seekTo((exoPlayer.currentPosition - 10_000).coerceAtLeast(0))
                 }) {
-                    Icon(Icons.Default.Replay10, "10s geri")
+                    Icon(Icons.Default.Replay10, null)
                 }
 
-                // Play / Pause
                 FilledIconButton(
                     onClick = {
                         if (exoPlayer.isPlaying) exoPlayer.pause()
@@ -170,16 +161,15 @@ fun AudioPlayerScreen(
                 ) {
                     Icon(
                         if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = if (isPlaying) "Duraklat" else "Oynat",
+                        null,
                         modifier = Modifier.size(32.dp)
                     )
                 }
 
-                // +10s
                 IconButton(onClick = {
                     exoPlayer.seekTo(exoPlayer.currentPosition + 10_000)
                 }) {
-                    Icon(Icons.Default.Forward10, "10s ileri")
+                    Icon(Icons.Default.Forward10, null)
                 }
             }
         }
