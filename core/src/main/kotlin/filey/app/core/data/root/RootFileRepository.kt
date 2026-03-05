@@ -30,9 +30,6 @@ class RootFileRepository : FileRepository {
         withContext(Dispatchers.IO) {
             runCatching {
                 val escapedPath = path.shellEscape()
-                // Robust parsing: use find with a specific format
-                // %y: type, %s: size, %T@: timestamp, %p: full path
-                // We use | as separator
                 val cmd = "find $escapedPath -maxdepth 1 -not -path $escapedPath -printf \"%y|%s|%T@|%p\\n\""
                 val lines = execOut(cmd)
 
@@ -51,7 +48,7 @@ class RootFileRepository : FileRepository {
         val typeChar = parts[0]
         val size = parts[1].toLongOrNull() ?: 0L
         val timestamp = (parts[2].toDoubleOrNull() ?: 0.0).toLong() * 1000
-        val fullPath = parts.subList(3, parts.size).joinToString("|") // Handle pipes in filename if any (rare)
+        val fullPath = parts.subList(3, parts.size).joinToString("|")
         
         val name = fullPath.substringAfterLast('/')
         if (name == "." || name == "..") return null
@@ -76,6 +73,7 @@ class RootFileRepository : FileRepository {
                 val target = "$path/$name".shellEscape()
                 val result = exec("mkdir -p $target")
                 if (!result.isSuccess) error("mkdir failed")
+                Unit
             }
         }
 
@@ -84,6 +82,7 @@ class RootFileRepository : FileRepository {
             runCatching {
                 val result = exec("rm -rf ${path.shellEscape()}")
                 if (!result.isSuccess) error("rm failed")
+                Unit
             }
         }
 
@@ -93,6 +92,7 @@ class RootFileRepository : FileRepository {
                 val joined = paths.joinToString(" ") { it.shellEscape() }
                 val result = exec("rm -rf $joined")
                 if (!result.isSuccess) error("rm failed")
+                Unit
             }
         }
 
@@ -113,6 +113,7 @@ class RootFileRepository : FileRepository {
                 val result = exec("cp -rf ${source.shellEscape()} ${destination.shellEscape()}/")
                 if (!result.isSuccess) error("cp failed")
                 onProgress?.invoke(1f)
+                Unit
             }
         }
 
@@ -122,6 +123,7 @@ class RootFileRepository : FileRepository {
                 val result = exec("mv ${source.shellEscape()} ${destination.shellEscape()}/")
                 if (!result.isSuccess) error("mv failed")
                 onProgress?.invoke(1f)
+                Unit
             }
         }
 
@@ -157,10 +159,10 @@ class RootFileRepository : FileRepository {
     override suspend fun writeText(path: String, content: String): Result<Unit> =
         withContext(Dispatchers.IO) {
             runCatching {
-                // Robust Write: pipe Base64 content to avoid issues with special characters and newlines
                 val b64 = Base64.encodeToString(content.toByteArray(), Base64.NO_WRAP)
                 val result = exec("echo '$b64' | base64 -d > ${path.shellEscape()}")
                 if (!result.isSuccess) error("write failed: ${result.err.joinToString()}")
+                Unit
             }
         }
 

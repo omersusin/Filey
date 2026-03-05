@@ -56,6 +56,7 @@ class ShizukuFileRepository : FileRepository {
             runCatching {
                 val (_, stderr, code) = exec("mkdir -p ${("$path/$name").shellEscape()}")
                 if (code != 0) error("mkdir failed: ${stderr.joinToString()}")
+                Unit
             }
         }
 
@@ -64,6 +65,7 @@ class ShizukuFileRepository : FileRepository {
             runCatching {
                 val (_, stderr, code) = exec("rm -rf ${path.shellEscape()}")
                 if (code != 0) error("rm failed: ${stderr.joinToString()}")
+                Unit
             }
         }
 
@@ -73,6 +75,7 @@ class ShizukuFileRepository : FileRepository {
                 val joined = paths.joinToString(" ") { it.shellEscape() }
                 val (_, stderr, code) = exec("rm -rf $joined")
                 if (code != 0) error("rm failed: ${stderr.joinToString()}")
+                Unit
             }
         }
 
@@ -93,6 +96,7 @@ class ShizukuFileRepository : FileRepository {
                 val (_, stderr, code) = exec("cp -rf ${source.shellEscape()} ${destination.shellEscape()}/")
                 if (code != 0) error("cp failed: ${stderr.joinToString()}")
                 onProgress?.invoke(1f)
+                Unit
             }
         }
 
@@ -102,6 +106,7 @@ class ShizukuFileRepository : FileRepository {
                 val (_, stderr, code) = exec("mv ${source.shellEscape()} ${destination.shellEscape()}/")
                 if (code != 0) error("mv failed: ${stderr.joinToString()}")
                 onProgress?.invoke(1f)
+                Unit
             }
         }
 
@@ -144,6 +149,7 @@ class ShizukuFileRepository : FileRepository {
                 val b64 = Base64.encodeToString(content.toByteArray(), Base64.NO_WRAP)
                 val (_, stderr, code) = exec("echo '$b64' | base64 -d > ${path.shellEscape()}")
                 if (code != 0) error("write failed: ${stderr.joinToString()}")
+                Unit
             }
         }
 
