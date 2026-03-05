@@ -14,5 +14,7 @@ enum class FileCategory(
     AUDIO("Müzikler", Icons.Outlined.MusicNote, setOf(FileType.AUDIO)),
     DOCUMENTS("Belgeler", Icons.Outlined.Description, setOf(FileType.TEXT, FileType.PDF)),
     APKS("Uygulamalar", Icons.Outlined.Android, setOf(FileType.APK)),
-    ARCHIVES("Arşivler", Icons.Outlined.FolderZip, setOf(FileType.ARCHIVE))
+    ARCHIVES("Arşivler", Icons.Outlined.FolderZip, setOf(FileType.ARCHIVE)),
+    OTHER("Diğer", Icons.Outlined.InsertDriveFile, emptySet()),
+    ALL("Tümü", Icons.Outlined.Folder, emptySet())
 }

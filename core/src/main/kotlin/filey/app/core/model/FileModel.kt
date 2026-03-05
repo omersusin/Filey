@@ -13,5 +13,6 @@ data class FileModel(
     val owner: String = "",
     val childCount: Int = 0,
     val tags: List<String> = emptyList(), // Added tags support
-    val uri: String = "" // Added for content extraction
+    val uri: String = "", // Added for content extraction
+    val category: FileCategory = FileCategory.OTHER
 )
