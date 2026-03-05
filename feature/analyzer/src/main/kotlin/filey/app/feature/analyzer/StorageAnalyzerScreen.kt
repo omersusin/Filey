@@ -10,6 +10,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ChevronRight
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -223,7 +225,7 @@ fun CategoryDetailCard(category: FileCategory, size: Long, totalUsed: Long) {
                 )
             }
             
-            Icon(Icons.Default.ChevronRight, null, tint = MaterialTheme.colorScheme.outlineVariant)
+            Icon(Icons.AutoMirrored.Filled.ChevronRight, null, tint = MaterialTheme.colorScheme.outlineVariant)
         }
     }
 }
