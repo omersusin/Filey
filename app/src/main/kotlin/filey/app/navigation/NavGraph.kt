@@ -3,13 +3,16 @@ package filey.app.navigation
 import android.net.Uri
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import filey.app.core.model.FileCategory
 import filey.app.feature.archive.ArchiveScreen
 import filey.app.feature.browser.BrowserScreen
+import filey.app.feature.browser.BrowserViewModel
 import filey.app.feature.editor.EditorScreen
 import filey.app.feature.player.AudioPlayerScreen
 import filey.app.feature.player.VideoPlayerScreen
@@ -18,15 +21,11 @@ import filey.app.feature.settings.SettingsScreen
 import filey.app.feature.dashboard.DashboardScreen
 import filey.app.feature.analyzer.StorageAnalyzerScreen
 import filey.app.feature.trash.TrashScreen
-import filey.app.feature.duplicates.DuplicateFinderScreen
+import filey.app.feature.duplicates.ui.DuplicatesScreen
 import filey.app.feature.server.ServerScreen
 import filey.app.feature.organizer.ui.OrganizerScreen
-import filey.app.feature.settings.SettingsScreen
-import filey.app.feature.dashboard.DashboardScreen
-
 import filey.app.feature.vault.ui.VaultScreen
 import filey.app.feature.viewer.PdfViewerScreen
-import filey.app.feature.duplicates.ui.DuplicatesScreen
 
 @Composable
 fun NavGraph(navController: NavHostController) {
@@ -51,9 +50,6 @@ fun NavGraph(navController: NavHostController) {
                 },
                 onNavigateToOrganizer = {
                     navController.navigate("organizer")
-                },
-                onNavigateToVault = {
-                    navController.navigate("vault")
                 },
                 onNavigateToTrash = {
                     navController.navigate("trash")
@@ -91,7 +87,6 @@ fun NavGraph(navController: NavHostController) {
             OrganizerScreen(onNavigateBack = { navController.popBackStack() })
         }
 
-
         // ── Analyzer ──
         composable("analyzer") {
             StorageAnalyzerScreen(onBack = { navController.popBackStack() })
@@ -100,11 +95,6 @@ fun NavGraph(navController: NavHostController) {
         // ── Trash ──
         composable("trash") {
             TrashScreen(onBack = { navController.popBackStack() })
-        }
-
-        // ── Duplicate Finder ──
-        composable("duplicates") {
-            DuplicateFinderScreen(onBack = { navController.popBackStack() })
         }
 
         // ── Share Server ──
@@ -118,7 +108,7 @@ fun NavGraph(navController: NavHostController) {
             arguments = listOf(navArgument("categoryName") { type = NavType.StringType })
         ) { backStackEntry ->
             val catName = backStackEntry.arguments?.getString("categoryName") ?: ""
-            val category = FileCategory.valueOf(catName)
+            val category = try { FileCategory.valueOf(catName) } catch (_: Exception) { FileCategory.DOCUMENTS }
             val viewModel: BrowserViewModel = viewModel(factory = BrowserViewModel.Factory)
             
             LaunchedEffect(category) {
@@ -141,6 +131,9 @@ fun NavGraph(navController: NavHostController) {
                 },
                 onNavigateToArchive = { path ->
                     navController.navigate("archive/${Uri.encode(path)}")
+                },
+                onNavigateToPdf = { path ->
+                    navController.navigate("pdf_viewer/${Uri.encode(path)}")
                 },
                 onNavigateToSettings = {
                     navController.navigate("settings")
@@ -174,6 +167,9 @@ fun NavGraph(navController: NavHostController) {
                 },
                 onNavigateToArchive = { path ->
                     navController.navigate("archive/${Uri.encode(path)}")
+                },
+                onNavigateToPdf = { path ->
+                    navController.navigate("pdf_viewer/${Uri.encode(path)}")
                 },
                 onNavigateToSettings = {
                     navController.navigate("settings")
