@@ -1,5 +1,7 @@
 package filey.app.feature.vault.ui
 
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricPrompt
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -15,9 +17,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -27,6 +32,39 @@ fun VaultScreen(
     var isUnlocked by remember { mutableStateOf(false) }
     var pin by remember { mutableStateOf("") }
     var error by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+
+    // Biometric Auth
+    val authenticate = {
+        val executor = ContextCompat.getMainExecutor(context)
+        val biometricPrompt = BiometricPrompt(
+            context as FragmentActivity,
+            executor,
+            object : BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                    super.onAuthenticationSucceeded(result)
+                    isUnlocked = true
+                }
+            }
+        )
+
+        val promptInfo = BiometricPrompt.PromptInfo.Builder()
+            .setTitle("Kasa Kilidini Aç")
+            .setSubtitle("Biyometrik verinizi kullanarak giriş yapın")
+            .setNegativeButtonText("PIN Kullan")
+            .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+            .build()
+
+        biometricPrompt.authenticate(promptInfo)
+    }
+
+    // Auto-start biometric if available
+    LaunchedEffect(Unit) {
+        val biometricManager = BiometricManager.from(context)
+        if (biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS) {
+            authenticate()
+        }
+    }
 
     if (!isUnlocked) {
         VaultAuthScreen(
@@ -43,6 +81,7 @@ fun VaultScreen(
                     }
                 }
             },
+            onBiometricClick = { authenticate() },
             onBack = onBack
         )
     } else {
@@ -56,6 +95,7 @@ fun VaultAuthScreen(
     pin: String,
     error: Boolean,
     onPinChange: (String) -> Unit,
+    onBiometricClick: () -> Unit,
     onBack: () -> Unit
 ) {
     Column(
@@ -106,7 +146,7 @@ fun VaultAuthScreen(
         Spacer(Modifier.height(48.dp))
 
         // Simple Keypad
-        val numbers = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "C")
+        val numbers = listOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "BIO", "0", "C")
         LazyColumn(modifier = Modifier.width(280.dp)) {
             items(numbers.chunked(3)) { row ->
                 Row(
@@ -114,21 +154,21 @@ fun VaultAuthScreen(
                     horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
                     row.forEach { num ->
-                        if (num.isEmpty()) {
-                            Spacer(Modifier.size(64.dp))
-                        } else {
-                            FilledTonalIconButton(
-                                onClick = {
-                                    if (num == "C") {
-                                        if (pin.isNotEmpty()) onPinChange(pin.dropLast(1))
-                                    } else {
-                                        if (pin.length < 4) onPinChange(pin + num)
-                                    }
-                                },
-                                modifier = Modifier.size(64.dp)
-                            ) {
-                                if (num == "C") Icon(Icons.Default.Backspace, null)
-                                else Text(num, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                        FilledTonalIconButton(
+                            onClick = {
+                                when (num) {
+                                    "C" -> if (pin.isNotEmpty()) onPinChange(pin.dropLast(1))
+                                    "BIO" -> onBiometricClick()
+                                    else -> if (pin.length < 4) onPinChange(pin + num)
+                                }
+                            },
+                            modifier = Modifier.size(64.dp),
+                            enabled = num.isNotEmpty()
+                        ) {
+                            when (num) {
+                                "C" -> Icon(Icons.Default.Backspace, null)
+                                "BIO" -> Icon(Icons.Default.Fingerprint, null)
+                                else -> Text(num, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     }
