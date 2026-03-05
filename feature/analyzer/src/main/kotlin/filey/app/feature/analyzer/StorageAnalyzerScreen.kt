@@ -142,7 +142,6 @@ fun StoragePieChartSection(uiState: AnalyzerUiState) {
 
 @Composable
 fun StoragePieChart(categorySizes: Map<FileCategory, Long>, totalUsed: Long) {
-    val categories = FileCategory.entries
     val colors = listOf(
         Color(0xFF2196F3), Color(0xFFE91E63), Color(0xFF9C27B0),
         Color(0xFFFF9800), Color(0xFF4CAF50), Color(0xFFF44336), Color(0xFF607D8B)

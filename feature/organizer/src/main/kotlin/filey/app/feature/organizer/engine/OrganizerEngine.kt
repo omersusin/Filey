@@ -1,6 +1,6 @@
 package filey.app.feature.organizer.engine
 
-import filey.app.core.utils.FileUtils
+import filey.app.core.model.FileUtils
 import filey.app.feature.organizer.model.OrganizerRule
 import java.io.File
 import kotlinx.coroutines.Dispatchers

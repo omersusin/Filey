@@ -4,18 +4,18 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import filey.app.feature.organizer.engine.OrganizerEngine
 import filey.app.feature.organizer.model.OrganizerRule
-import kotlinx.coroutines.launch
 import filey.app.feature.organizer.worker.OrganizerWorkManager
-import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -25,13 +25,11 @@ fun OrganizerScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val engine = remember { OrganizerEngine() }
-
+    
     var rules by remember { mutableStateOf(engine.getDefaultRules()) }
     var isOrganizing by remember { mutableStateOf(false) }
     var progressMessage by remember { mutableStateOf("") }
     var showAddDialog by remember { mutableStateOf(false) }
-
-    // Simulation of persistent state (should be in DataStore normally)
     var isBackgroundWorkEnabled by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -40,7 +38,7 @@ fun OrganizerScreen(
                 title = { Text("Otomatik Düzenleyici") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Geri")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Geri")
                     }
                 },
                 actions = {
@@ -49,37 +47,13 @@ fun OrganizerScreen(
                     }
                 }
             )
-        }
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-        ) {
-            // Background Task Switch
-            ListItem(
-                headlineContent = { Text("Otomatik Temizlik (Arka Plan)") },
-                supportingContent = { Text("İndirilenleri her 12 saatte bir otomatik düzenle") },
-                leadingContent = { Icon(Icons.Default.AutoMode, null) },
-                trailingContent = {
-                    Switch(
-                        checked = isBackgroundWorkEnabled,
-                        onCheckedChange = { enabled ->
-                            isBackgroundWorkEnabled = enabled
-                            if (enabled) {
-                                OrganizerWorkManager.schedulePeriodicWork(context)
-                            } else {
-                                OrganizerWorkManager.cancelWork(context)
-                            }
-                        }
-                    )
-                }
-            )
-
-            HorizontalDivider()
-
-            if (isOrganizing) {
-
+        },
+        floatingActionButton = {
+            if (!isOrganizing) {
+                ExtendedFloatingActionButton(
+                    onClick = {
+                        isOrganizing = true
+                        scope.launch {
                             val downloadPath = android.os.Environment.getExternalStoragePublicDirectory(
                                 android.os.Environment.DIRECTORY_DOWNLOADS
                             ).absolutePath
@@ -103,6 +77,27 @@ fun OrganizerScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
+            ListItem(
+                headlineContent = { Text("Otomatik Temizlik (Arka Plan)") },
+                supportingContent = { Text("İndirilenleri her 12 saatte bir otomatik düzenle") },
+                leadingContent = { Icon(Icons.Default.AutoMode, null) },
+                trailingContent = {
+                    Switch(
+                        checked = isBackgroundWorkEnabled,
+                        onCheckedChange = { enabled ->
+                            isBackgroundWorkEnabled = enabled
+                            if (enabled) {
+                                OrganizerWorkManager.schedulePeriodicWork(context)
+                            } else {
+                                OrganizerWorkManager.cancelWork(context)
+                            }
+                        }
+                    )
+                }
+            )
+            
+            HorizontalDivider()
+
             if (isOrganizing) {
                 LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 Text(
@@ -130,9 +125,7 @@ fun OrganizerScreen(
                 modifier = Modifier.padding(16.dp)
             )
 
-            LazyColumn(
-                modifier = Modifier.weight(1f)
-            ) {
+            LazyColumn(modifier = Modifier.weight(1f)) {
                 items(rules) { rule ->
                     RuleItem(
                         rule = rule,
