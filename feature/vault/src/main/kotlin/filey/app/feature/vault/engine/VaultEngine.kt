@@ -1,41 +1,28 @@
 package filey.app.feature.vault.engine
 
-import java.io.*
-import java.security.SecureRandom
-import javax.crypto.Cipher
-import javax.crypto.CipherInputStream
-import javax.crypto.CipherOutputStream
-import javax.crypto.spec.IvParameterSpec
-import javax.crypto.spec.SecretKeySpec
+import android.content.Context
+import filey.app.feature.vault.engine.HardenedVaultCrypto
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileInputStream
+import java.io.FileOutputStream
+import javax.crypto.Cipher
 
-class VaultEngine {
-
-    companion object {
-        private const val ALGORITHM = "AES/CBC/PKCS5Padding"
-        private const val KEY_SIZE = 32 // 256 bit
-        private const val IV_SIZE = 16 // 128 bit
-    }
+class VaultEngine(
+    private val context: Context,
+    private val hardenedVaultCrypto: HardenedVaultCrypto = HardenedVaultCrypto(context)
+) {
 
     suspend fun encryptFile(
         sourceFile: File,
         targetFile: File,
-        passwordHash: String
+        cipher: Cipher
     ): Boolean = withContext(Dispatchers.IO) {
         try {
-            val key = generateKey(passwordHash)
-            val iv = generateIv()
-            val cipher = Cipher.getInstance(ALGORITHM)
-            cipher.init(Cipher.ENCRYPT_MODE, key, IvParameterSpec(iv))
-
-            FileOutputStream(targetFile).use { fos ->
-                // Write IV first
-                fos.write(iv)
-                CipherOutputStream(fos, cipher).use { cos ->
-                    FileInputStream(sourceFile).use { fis ->
-                        fis.copyTo(cos)
-                    }
+            FileInputStream(sourceFile).use { fis ->
+                FileOutputStream(targetFile).use { fos ->
+                    hardenedVaultCrypto.encryptFile(fis, fos, cipher)
                 }
             }
             true
@@ -48,22 +35,12 @@ class VaultEngine {
     suspend fun decryptFile(
         sourceFile: File,
         targetFile: File,
-        passwordHash: String
+        cipher: Cipher
     ): Boolean = withContext(Dispatchers.IO) {
         try {
             FileInputStream(sourceFile).use { fis ->
-                // Read IV first
-                val iv = ByteArray(IV_SIZE)
-                fis.read(iv)
-
-                val key = generateKey(passwordHash)
-                val cipher = Cipher.getInstance(ALGORITHM)
-                cipher.init(Cipher.DECRYPT_MODE, key, IvParameterSpec(iv))
-
-                CipherInputStream(fis, cipher).use { cis ->
-                    FileOutputStream(targetFile).use { fos ->
-                        cis.copyTo(fos)
-                    }
+                FileOutputStream(targetFile).use { fos ->
+                    hardenedVaultCrypto.decryptFile(fis, fos, cipher)
                 }
             }
             true
@@ -72,16 +49,21 @@ class VaultEngine {
             false
         }
     }
-
-    private fun generateKey(password: String): SecretKeySpec {
-        val digest = java.security.MessageDigest.getInstance("SHA-256")
-        val keyBytes = digest.digest(password.toByteArray())
-        return SecretKeySpec(keyBytes, "AES")
-    }
-
-    private fun generateIv(): ByteArray {
-        val iv = ByteArray(IV_SIZE)
-        SecureRandom().nextBytes(iv)
-        return iv
+    
+    // Legacy support or helper to extract IV for decryption
+    fun extractIv(file: File): ByteArray? {
+        return try {
+            FileInputStream(file).use { fis ->
+                // Header: MAGIC(4) + VERSION(1) + IV_LENGTH(1)
+                val header = ByteArray(6)
+                fis.read(header)
+                val ivLength = header[5].toInt() and 0xFF
+                val iv = ByteArray(ivLength)
+                fis.read(iv)
+                iv
+            }
+        } catch (e: Exception) {
+            null
+        }
     }
 }
