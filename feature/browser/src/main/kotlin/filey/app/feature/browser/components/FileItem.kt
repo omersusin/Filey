@@ -40,11 +40,14 @@ fun FileListItem(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        onClick = onClick,
-        onLongClick = onLongClick,
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 4.dp),
+            .padding(horizontal = 12.dp, vertical = 4.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            ),
         shape = RoundedCornerShape(16.dp),
         color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f) 
                 else MaterialTheme.colorScheme.surface,
@@ -164,9 +167,13 @@ fun FileGridItem(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        onClick = onClick,
-        onLongClick = onLongClick,
-        modifier = modifier.padding(6.dp),
+        modifier = modifier
+            .padding(6.dp)
+            .clip(RoundedCornerShape(20.dp))
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            ),
         shape = RoundedCornerShape(20.dp),
         color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
                 else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),

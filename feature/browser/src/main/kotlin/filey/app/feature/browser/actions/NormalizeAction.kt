@@ -28,13 +28,13 @@ class NormalizeAction : FileAction {
             var cleanName = try { URLDecoder.decode(originalName, "UTF-8") } catch (_: Exception) { originalName }
             
             // 2. Remove common mess patterns like (1), _copy, -1 etc
-            cleanName = cleanName.replace(Regex("\s*\(\d+\)\s*"), "")
-                .replace(Regex("\s*_copy\s*"), "")
+            cleanName = cleanName.replace(Regex("""\s*\(\d+\)\s*"""), "")
+                .replace(Regex("""\s*_copy\s*"""), "")
                 .replace("_", " ")
                 .replace("-", " ")
             
             // 3. Normalize spaces
-            cleanName = cleanName.trim().replace(Regex("\s+"), " ")
+            cleanName = cleanName.trim().replace(Regex("""\s+"""), " ")
             
             // 4. Capitalize (optional but looks better)
             cleanName = cleanName.split(" ").joinToString(" ") { word ->
