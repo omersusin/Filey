@@ -1,6 +1,7 @@
 package filey.app.feature.browser.components
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
@@ -10,7 +11,7 @@ import androidx.compose.ui.unit.dp
 import filey.app.core.model.FileType
 import filey.app.feature.browser.SearchFilters
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun SearchFilterSheet(
     filters: SearchFilters,
