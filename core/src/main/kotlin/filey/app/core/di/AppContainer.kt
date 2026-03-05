@@ -38,6 +38,14 @@ class AppContainer(private val context: Context) {
         )
     }
 
+    // ObjectBox Store for Vector Search and Metadata
+    // Note: MyObjectBox is generated after the first build
+    // val boxStore: io.objectbox.BoxStore by lazy {
+    //    MyObjectBox.builder()
+    //        .androidContext(context)
+    //        .build()
+    // }
+
     companion object {
         lateinit var Instance: AppContainer
             private set

@@ -3,6 +3,7 @@ pluginManagement {
         google()
         mavenCentral()
         gradlePluginPortal()
+        maven { url = uri("https://maven.objectbox.io") }
     }
 }
 
@@ -12,6 +13,7 @@ dependencyResolutionManagement {
         google()
         mavenCentral()
         maven { url = uri("https://jitpack.io") }
+        maven { url = uri("https://maven.objectbox.io") }
     }
 }
 
@@ -30,5 +32,7 @@ include(":feature:player")
 include(":feature:server")
 include(":feature:settings")
 include(":feature:trash")
+include(":feature:search-semantic")
+include(":feature:smart-tags")
 include(":feature:vault")
 include(":feature:viewer")

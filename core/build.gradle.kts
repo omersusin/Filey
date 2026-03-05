@@ -50,6 +50,8 @@ dependencies {
     implementation(libs.libsu.service)
     implementation(libs.androidx.datastore)
     implementation(libs.shizuku.api)
+    implementation(libs.androidx.biometric)
+    implementation(libs.androidx.security.crypto)
 
     debugImplementation(libs.compose.ui.tooling)
 

@@ -12,5 +12,6 @@ data class FileModel(
     val permissions: String = "",
     val owner: String = "",
     val childCount: Int = 0,
-    val tags: List<String> = emptyList() // Added tags support
+    val tags: List<String> = emptyList(), // Added tags support
+    val uri: String = "" // Added for content extraction
 )
