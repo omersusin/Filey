@@ -1,10 +1,10 @@
 package filey.app.feature.server
 
 import android.content.Context
-import android.net.wifi.WifiManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.*
+import java.net.NetworkInterface
 import java.net.ServerSocket
 import java.net.Socket
 import java.net.URLDecoder
@@ -16,12 +16,22 @@ class FileyServer(private val context: Context) {
     private var isRunning = false
 
     fun getIpAddress(): String {
-        val wm = context.applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
-        val ip = wm.connectionInfo.ipAddress
-        return String.format(
-            Locale.US, "%d.%d.%d.%d",
-            ip and 0xff, ip shr 8 and 0xff, ip shr 16 and 0xff, ip shr 24 and 0xff
-        )
+        try {
+            val interfaces = NetworkInterface.getNetworkInterfaces()
+            for (intf in interfaces) {
+                val addrs = intf.inetAddresses
+                for (addr in addrs) {
+                    if (!addr.isLoopbackAddress) {
+                        val sAddr = addr.hostAddress
+                        val isIPv4 = sAddr.indexOf(':') < 0
+                        if (isIPv4) return sAddr
+                    }
+                }
+            }
+        } catch (ex: Exception) {
+            ex.printStackTrace()
+        }
+        return "127.0.0.1"
     }
 
     suspend fun start(port: Int = 8080) = withContext(Dispatchers.IO) {
