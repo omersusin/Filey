@@ -86,29 +86,25 @@ class FileyServer(private val context: Context) {
             }
             append("</body></html>")
         }
-        val header = "HTTP/1.1 200 OK
-Content-Type: text/html
-Content-Length: ${html.length}
-
-"
+        val header = "HTTP/1.1 200 OK\r\n" +
+                "Content-Type: text/html\r\n" +
+                "Content-Length: ${html.length}\r\n" +
+                "\r\n"
         out.writeBytes(header)
         out.writeBytes(html)
     }
 
     private fun sendFile(out: DataOutputStream, file: File) {
-        val header = "HTTP/1.1 200 OK
-Content-Type: application/octet-stream
-Content-Length: ${file.length()}
-Content-Disposition: attachment; filename="${file.name}"
-
-"
+        val header = "HTTP/1.1 200 OK\r\n" +
+                "Content-Type: application/octet-stream\r\n" +
+                "Content-Length: ${file.length()}\r\n" +
+                "Content-Disposition: attachment; filename=\"${file.name}\"\r\n" +
+                "\r\n"
         out.writeBytes(header)
         file.inputStream().use { it.copyTo(out) }
     }
 
     private fun sendError(out: DataOutputStream, error: String) {
-        out.writeBytes("HTTP/1.1 $error
-
-")
+        out.writeBytes("HTTP/1.1 $error\r\n\r\n")
     }
 }

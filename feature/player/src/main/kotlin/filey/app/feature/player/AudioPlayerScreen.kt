@@ -21,8 +21,6 @@ import coil.request.ImageRequest
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
-import coil.compose.AsyncImage
-import coil.request.ImageRequest
 import filey.app.core.model.FileUtils
 import kotlinx.coroutines.delay
 import java.io.File
