@@ -41,7 +41,6 @@ dependencies {
     implementation(libs.androidx.work.runtime)
     
     // ML Kit Text Recognition
-    implementation(libs.mlkit.textRecognition)
 
     testImplementation(libs.junit)
 }
