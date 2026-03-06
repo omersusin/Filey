@@ -29,7 +29,7 @@ class SandboxedCommandExecutor(
             Shell.cmd(shellCommand).exec()
         } else {
             // Normal execution if root not required, but here we use Shell for consistency
-            Shell.sh(shellCommand).exec()
+            Shell.cmd(shellCommand).exec()
         }
 
         val endTime = System.currentTimeMillis()
