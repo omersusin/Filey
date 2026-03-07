@@ -1,29 +1,22 @@
 package filey.app.feature.search.semantic.data.indexer
 
 import android.graphics.Bitmap
-import com.google.android.gms.tasks.Tasks
-import com.google.mlkit.vision.common.InputImage
-import com.google.mlkit.vision.text.TextRecognition
-import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.util.concurrent.TimeUnit
 
+/**
+ * OCR stub — search-semantic modülünde ML Kit bağımlılığı yok.
+ * Gerçek OCR feature:smart-tags modülündeki SmartTextRecognizer ile yapılıyor.
+ * PDF metin çıkarma için PdfRenderer bitmap'leri buraya gelir; şimdilik boş string döner.
+ * İleride ML Kit bağımlılığı eklenirse bu sınıf doldurulabilir.
+ */
 class OcrContentExtractor {
 
-    private val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-
-    suspend fun recognizeText(bitmap: Bitmap): String = withContext(Dispatchers.IO) {
-        try {
-            val image = InputImage.fromBitmap(bitmap, 0)
-            val result = Tasks.await(recognizer.process(image), 10, TimeUnit.SECONDS)
-            result.text
-        } catch (e: Exception) {
-            ""
-        }
+    suspend fun recognizeText(bitmap: Bitmap): String = withContext(Dispatchers.Default) {
+        // ML Kit bu modülde yok — ContentExtractor PDF sayfalarını burada işler.
+        // Gelecekte: ML Kit eklenirse TextRecognition.getClient() burada başlatılır.
+        ""
     }
 
-    fun close() {
-        recognizer.close()
-    }
+    fun close() { /* no-op */ }
 }
