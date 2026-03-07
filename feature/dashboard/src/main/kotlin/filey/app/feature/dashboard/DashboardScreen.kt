@@ -36,6 +36,7 @@ fun DashboardScreen(
     onNavigateToOrganizer: () -> Unit,
     onNavigateToTrash: () -> Unit,
     onNavigateToServer: () -> Unit,
+    onNavigateToSearch: () -> Unit,
     viewModel: DashboardViewModel = viewModel(factory = DashboardViewModel.Factory)
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -74,7 +75,6 @@ fun DashboardScreen(
         ) {
             Spacer(Modifier.height(8.dp))
             
-            // Modern Storage Analysis Card
             StorageCard(uiState, onNavigateToAnalyzer)
 
             Spacer(Modifier.height(24.dp))
@@ -88,29 +88,35 @@ fun DashboardScreen(
             
             Spacer(Modifier.height(12.dp))
 
-            // Premium Quick Actions Row
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
+                QuickActionButton(
+                    icon = Icons.Default.Search,
+                    label = "Arama",
+                    color = MaterialTheme.colorScheme.primaryContainer,
+                    onClick = onNavigateToSearch,
+                    modifier = Modifier.weight(1f)
+                )
                 QuickActionButton(
                     icon = Icons.Default.AutoMode,
                     label = "Düzenle",
-                    color = MaterialTheme.colorScheme.primaryContainer,
+                    color = MaterialTheme.colorScheme.secondaryContainer,
                     onClick = onNavigateToOrganizer,
                     modifier = Modifier.weight(1f)
                 )
                 QuickActionButton(
                     icon = Icons.Default.Delete,
                     label = "Çöp",
-                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    color = MaterialTheme.colorScheme.tertiaryContainer,
                     onClick = onNavigateToTrash,
                     modifier = Modifier.weight(1f)
                 )
                 QuickActionButton(
                     icon = Icons.Default.Language,
                     label = "Paylaş",
-                    color = MaterialTheme.colorScheme.tertiaryContainer,
+                    color = MaterialTheme.colorScheme.surfaceVariant,
                     onClick = onNavigateToServer,
                     modifier = Modifier.weight(1f)
                 )
@@ -186,7 +192,7 @@ fun QuickActionButton(
             Spacer(Modifier.height(8.dp))
             Text(
                 label,
-                style = MaterialTheme.typography.labelLarge,
+                style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Bold
             )
         }

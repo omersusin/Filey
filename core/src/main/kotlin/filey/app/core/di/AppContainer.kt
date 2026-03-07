@@ -8,9 +8,6 @@ import filey.app.core.data.preferences.AppPreferences
 import filey.app.core.data.root.RootFileRepository
 import filey.app.core.data.shizuku.ShizukuFileRepository
 
-/**
- * Dependency injection container for the app.
- */
 class AppContainer(private val context: Context) {
 
     val preferences: AppPreferences by lazy {
@@ -38,13 +35,8 @@ class AppContainer(private val context: Context) {
         )
     }
 
-    // ObjectBox Store for Vector Search and Metadata
-    // Note: MyObjectBox is generated after the first build
-    // val boxStore: io.objectbox.BoxStore by lazy {
-    //    MyObjectBox.builder()
-    //        .androidContext(context)
-    //        .build()
-    // }
+    // Semantic Search için dinamik veritabanı tutucu
+    var boxStore: Any? = null
 
     companion object {
         lateinit var Instance: AppContainer

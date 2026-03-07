@@ -60,6 +60,7 @@ dependencies {
     implementation(project(":feature:security"))
     implementation(project(":feature:vault"))
     implementation(project(":feature:viewer"))
+    implementation(project(":feature:search-semantic"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime)

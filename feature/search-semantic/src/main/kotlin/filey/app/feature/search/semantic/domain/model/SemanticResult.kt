@@ -6,5 +6,5 @@ data class SemanticResult(
     val chunkText: String,
     val pageNumber: Int,
     val relevanceScore: Float,
-    val metadata: Map<String, String> = emptyMap()
+    val metadata: Map<String, String>
 )
