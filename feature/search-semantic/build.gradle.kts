@@ -17,12 +17,9 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-    buildFeatures {
-        compose = true
-    }
+    kotlinOptions { jvmTarget = "17" }
+
+    buildFeatures { compose = true }
     composeOptions {
         kotlinCompilerExtensionVersion = libs.versions.composeCompiler.get()
     }
@@ -30,21 +27,20 @@ android {
 
 dependencies {
     implementation(project(":core"))
-
     implementation(libs.androidx.core.ktx)
     implementation(libs.kotlinx.coroutines.android)
 
-    // Compose — SemanticSearchScreen için gerekli
+    // Compose
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
     implementation(libs.compose.material3)
     implementation(libs.compose.material.icons)
     implementation(libs.androidx.lifecycle.viewmodel)
 
-    // TensorFlow Lite
-    implementation(libs.tensorflowLite)
-    implementation(libs.tensorflowLiteGpu)
-    implementation(libs.tensorflowLiteSupport)
+    // TensorFlow Lite  — TOML key: tensorflow-lite → accessor: libs.tensorflow.lite
+    implementation(libs.tensorflow.lite)
+    implementation(libs.tensorflow.lite.gpu)
+    implementation(libs.tensorflow.lite.support)
 
     // ObjectBox
     implementation(libs.objectbox.android)
