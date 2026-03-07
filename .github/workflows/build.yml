@@ -2,9 +2,9 @@ name: Build Filey APK
 
 on:
   push:
-    branches: [ main ]
+    branches: [ "**" ]
   pull_request:
-    branches: [ main ]
+    branches: [ "**" ]
   workflow_dispatch:
 
 jobs:
@@ -26,12 +26,6 @@ jobs:
 
       - name: Grant execute permission
         run: chmod +x gradlew || true
-
-      - name: Create Gradle Wrapper
-        run: |
-          if [ ! -f gradlew ]; then
-            gradle wrapper --gradle-version 8.7
-          fi
 
       - name: Build Debug APK
         run: ./gradlew assembleDebug --no-daemon --stacktrace
