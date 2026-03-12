@@ -20,7 +20,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class SearchViewModel(
-    private val semanticSearchUseCase: SemanticSearchUseCase
+    private val semanticSearchUseCase: SemanticSearchUseCase?
 ) : ViewModel() {
     
     private val _uiState = MutableStateFlow(SearchUiState())
@@ -33,6 +33,11 @@ class SearchViewModel(
     fun performSearch() {
         val query = _uiState.value.query
         if (query.isBlank()) return
+        
+        if (semanticSearchUseCase == null) {
+            _uiState.update { it.copy(error = "Arama motoru başlatılamadı", isLoading = false) }
+            return
+        }
         
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
@@ -62,13 +67,14 @@ class SearchViewModel(
                 initializer {
                     val embeddingGenerator = EmbeddingGenerator(context)
                     val boxStore = AppContainer.Instance.boxStore as? BoxStore
-                        ?: throw IllegalStateException("ObjectBox henüz başlatılmadı")
-                    val vectorStore = ObjectBoxVectorStore(boxStore)
-                    val useCase = SemanticSearchUseCase(
-                        embeddingGenerator,
-                        vectorStore,
-                        QueryPreprocessor()
-                    )
+                    val vectorStore = boxStore?.let { ObjectBoxVectorStore(it) }
+                    val useCase = vectorStore?.let { 
+                        SemanticSearchUseCase(
+                            embeddingGenerator,
+                            it,
+                            QueryPreprocessor()
+                        )
+                    }
                     SearchViewModel(useCase)
                 }
             }
