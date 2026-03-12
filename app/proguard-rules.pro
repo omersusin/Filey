@@ -16,3 +16,7 @@
 
 # ── DataStore ──
 -keep class androidx.datastore.** { *; }
+
+# ── TensorFlow Lite ──
+-dontwarn org.tensorflow.lite.**
+-keep class org.tensorflow.lite.** { *; }
