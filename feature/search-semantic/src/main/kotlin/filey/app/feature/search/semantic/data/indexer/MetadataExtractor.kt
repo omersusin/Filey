@@ -1,21 +1,9 @@
 package filey.app.feature.search.semantic.data.indexer
 
-import filey.app.core.model.FileModel
-import java.io.File
+import filey.app.feature.search.semantic.domain.model.EntityType
+import filey.app.feature.search.semantic.domain.model.NamedEntity
 
 class MetadataExtractor {
-
-    data class NamedEntity(
-        val type: EntityType,
-        val value: String,
-        val range: IntRange
-    )
-
-    enum class EntityType {
-        DATE,
-        INVOICE_NUMBER,
-        MONEY
-    }
 
     fun extractEntities(text: String): List<NamedEntity> {
         val entities = mutableListOf<NamedEntity>()
@@ -33,7 +21,7 @@ class MetadataExtractor {
                     NamedEntity(
                         type = EntityType.DATE,
                         value = match.value,
-                        range = match.range
+                        position = match.range
                     )
                 )
             }
@@ -47,7 +35,7 @@ class MetadataExtractor {
                     NamedEntity(
                         type = EntityType.INVOICE_NUMBER,
                         value = match.groupValues[3],
-                        range = match.range
+                        position = match.range
                     )
                 )
             }
@@ -60,7 +48,7 @@ class MetadataExtractor {
                 NamedEntity(
                     type = EntityType.MONEY,
                     value = match.value,
-                    range = match.range
+                    position = match.range
                 )
             )
         }

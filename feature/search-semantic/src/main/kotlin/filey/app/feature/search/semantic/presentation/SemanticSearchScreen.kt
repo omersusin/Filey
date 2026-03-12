@@ -68,7 +68,7 @@ fun SemanticSearchScreen(
                     }
                     items(uiState.results) { result ->
                         SemanticResultItem(result = result, onClick = { onResultClick(result.documentPath) })
-                        Divider()
+                        HorizontalDivider()
                     }
                 }
             }

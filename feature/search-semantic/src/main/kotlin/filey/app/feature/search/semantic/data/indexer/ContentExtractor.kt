@@ -12,7 +12,9 @@ import java.io.File
 import javax.inject.Inject
 
 class ContentExtractor @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val ocrExtractor: OcrContentExtractor,
+    private val metadataExtractor: MetadataExtractor
 ) {
     
     data class ExtractionResult(
@@ -25,9 +27,9 @@ class ContentExtractor @Inject constructor(
     enum class ExtractionMethod {
         NONE, PDF_RENDER_OCR, TEXT, OFFICE
     }
-
+    
     suspend fun extract(filePath: String): ExtractionResult {
-        val file = File(filePath)
+        val file = java.io.File(filePath)
         return when {
             file.extension.equals("pdf", ignoreCase = true) -> extractPdf(file)
             file.extension.equals("txt", ignoreCase = true) || 
@@ -41,30 +43,49 @@ class ContentExtractor @Inject constructor(
         }
     }
     
-    private suspend fun extractPdf(file: File): ExtractionResult {
+    private suspend fun extractPdf(file: java.io.File): ExtractionResult {
         return withContext(Dispatchers.IO) {
             try {
-                val fd = context.contentResolver.openFileDescriptor(Uri.fromFile(file), "r") ?: return@withContext emptyResult()
+                val fd = context.contentResolver.openFileDescriptor(android.net.Uri.fromFile(file), "r") ?: return@withContext emptyResult()
                 val renderer = PdfRenderer(fd)
                 val fullText = StringBuilder()
                 val pageCount = renderer.pageCount
                 
-                // Basit bir implementasyon: Henüz OCR yok, sadece metin çıkarılabiliyorsa (gelecekte ML Kit eklenecek)
-                // Şimdilik sadece sayfa sayısını ve adını alıyoruz
-                
+                for (i in 0 until pageCount.coerceAtMost(10)) { // Limit to first 10 pages for performance
+                    renderer.openPage(i).use { page ->
+                        val bitmap = Bitmap.createBitmap(
+                            page.width * 2, page.height * 2, 
+                            Bitmap.Config.ARGB_8888
+                        )
+                        page.render(
+                            bitmap, null, null, 
+                            PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY
+                        )
+                        
+                        val text = ocrExtractor.recognizeText(bitmap)
+                        fullText.appendLine(text)
+                        bitmap.recycle()
+                    }
+                }
                 renderer.close()
                 fd.close()
                 
+                val text = fullText.toString()
+                val entities = extractEntities(text)
+                
                 ExtractionResult(
-                    text = "PDF Content of ${file.name}", // Placeholder
+                    text = text,
                     metadata = DocumentMetadata(
                         title = file.name,
                         pageCount = pageCount,
-                        detectedEntities = emptyList(),
-                        author = null, creationDate = null, modifiedDate = file.lastModified(), language = null
+                        detectedEntities = entities,
+                        author = null, 
+                        creationDate = null, 
+                        modifiedDate = file.lastModified(), 
+                        language = null
                     ),
                     extractionMethod = ExtractionMethod.PDF_RENDER_OCR,
-                    confidence = 0.5f
+                    confidence = 0.9f
                 )
             } catch (e: Exception) {
                 emptyResult()
@@ -72,7 +93,7 @@ class ContentExtractor @Inject constructor(
         }
     }
     
-    private suspend fun extractText(file: File): ExtractionResult {
+    private suspend fun extractText(file: java.io.File): ExtractionResult {
         return withContext(Dispatchers.IO) {
             val text = file.readText()
             ExtractionResult(
@@ -81,7 +102,10 @@ class ContentExtractor @Inject constructor(
                     title = file.name,
                     pageCount = 1,
                     detectedEntities = extractEntities(text),
-                    author = null, creationDate = null, modifiedDate = file.lastModified(), language = null
+                    author = null, 
+                    creationDate = null, 
+                    modifiedDate = file.lastModified(), 
+                    language = null
                 ),
                 extractionMethod = ExtractionMethod.TEXT,
                 confidence = 1.0f
@@ -91,11 +115,50 @@ class ContentExtractor @Inject constructor(
     
     private fun extractEntities(text: String): List<NamedEntity> {
         val entities = mutableListOf<NamedEntity>()
-        // Basit Regex bazlı entity extraction
-        val datePattern = """\d{2}[./]\d{2}[./]\d{4}""".toRegex()
-        datePattern.findAll(text).forEach { match ->
-            entities.add(NamedEntity(EntityType.DATE, match.value, match.range))
+        
+        // Tarih pattern'leri
+        val datePatterns = listOf(
+            """\d{2}[./]\d{2}[./]\d{4}""",
+            """\d{4}-\d{2}-\d{2}""",
+            """(?i)(ocak|şubat|mart|nisan|mayıs|haziran|temmuz|ağustos|eylül|ekim|kasım|aralık)\s+\d{4}"""
+        )
+        
+        datePatterns.forEach { pattern ->
+            Regex(pattern).findAll(text).forEach { match ->
+                entities.add(
+                    NamedEntity(
+                        type = EntityType.DATE,
+                        value = match.value,
+                        position = match.range
+                    )
+                )
+            }
         }
+        
+        // Fatura / Invoice pattern
+        val invoicePattern = """(?i)(fatura|invoice|fiş)\s*(no|numarası|number)?[:\s#]*([A-Z0-9\-]+)"""
+        Regex(invoicePattern).findAll(text).forEach { match ->
+            entities.add(
+                NamedEntity(
+                    type = EntityType.INVOICE_NUMBER,
+                    value = match.groupValues[3],
+                    position = match.range
+                )
+            )
+        }
+        
+        // Para miktarları
+        val moneyPattern = """[\$€₺]\s*[\d,.]+|[\d,.]+\s*(TL|USD|EUR|₺)"""
+        Regex(moneyPattern).findAll(text).forEach { match ->
+            entities.add(
+                NamedEntity(
+                    type = EntityType.MONEY,
+                    value = match.value,
+                    position = match.range
+                )
+            )
+        }
+        
         return entities
     }
 

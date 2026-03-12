@@ -48,21 +48,17 @@ class IndexingWorker(
     private val appContainer = AppContainer.Instance
     private val fileRepository: FileRepository = appContainer.fileRepository
     
-    private val contentExtractor = ContentExtractor(applicationContext)
-    private val chunker = ChunkingStrategy()
+    private val ocrExtractor = OcrContentExtractor()
+    private val metadataExtractor = MetadataExtractor()
+    private val contentExtractor = ContentExtractor(applicationContext, ocrExtractor, metadataExtractor)
+    private val chunker = SemanticChunker()
     private val embeddingGenerator = EmbeddingGenerator(applicationContext)
     
     override suspend fun doWork(): Result {
         return withContext(Dispatchers.IO) {
             try {
                 // Production: get BoxStore from AppContainer
-                val boxStore = try {
-                    val field = appContainer.javaClass.getDeclaredField("boxStore")
-                    field.isAccessible = true
-                    field.get(appContainer) as? io.objectbox.BoxStore
-                } catch (e: Exception) {
-                    null
-                }
+                val boxStore = AppContainer.Instance.boxStore as? io.objectbox.BoxStore
 
                 if (boxStore == null) {
                     return@withContext Result.failure(
@@ -82,15 +78,14 @@ class IndexingWorker(
                     }
 
                     // 1. Extract
-                    val extraction = contentExtractor.extract(fileModel)
+                    val extraction = contentExtractor.extract(fileModel.path)
                     if (extraction.text.isBlank()) continue
                     
                     // 2. Chunk
                     val chunks = chunker.chunk(
                         text = extraction.text,
                         documentId = fileModel.path.hashCode().toString(),
-                        metadata = extraction.metadata,
-                        entities = extraction.entities
+                        metadata = extraction.metadata
                     )
                     
                     // 3. Embeddings

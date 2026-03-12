@@ -2,40 +2,57 @@ package filey.app.feature.search.semantic.presentation
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import dagger.hilt.android.lifecycle.HiltViewModel
 import filey.app.feature.search.semantic.domain.usecase.SemanticSearchUseCase
 import filey.app.feature.search.semantic.domain.model.SemanticResult
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-@HiltViewModel
 class SearchViewModel @Inject constructor(
     private val semanticSearchUseCase: SemanticSearchUseCase
 ) : ViewModel() {
     
-    private val _uiState = MutableStateFlow<SearchUiState>(SearchUiState.Idle)
-    val uiState: StateFlow<SearchUiState> = _uiState
+    private val _uiState = MutableStateFlow(SearchUiState())
+    val uiState: StateFlow<SearchUiState> = _uiState.asStateFlow()
     
-    fun search(query: String) {
+    fun onQueryChange(newQuery: String) {
+        _uiState.update { it.copy(query = newQuery) }
+    }
+    
+    fun performSearch() {
+        val query = _uiState.value.query
         if (query.isBlank()) return
         
         viewModelScope.launch {
-            _uiState.value = SearchUiState.Loading
+            _uiState.update { it.copy(isLoading = true, error = null) }
             try {
                 val result = semanticSearchUseCase(query)
-                _uiState.value = SearchUiState.Success(result.results)
+                _uiState.update { 
+                    it.copy(
+                        results = result.results,
+                        searchTimeMs = result.searchTimeMs,
+                        isLoading = false
+                    )
+                }
             } catch (e: Exception) {
-                _uiState.value = SearchUiState.Error(e.message ?: "Arama sırasında bir hata oluştu")
+                _uiState.update { 
+                    it.copy(
+                        error = e.message ?: "Arama sırasında bir hata oluştu",
+                        isLoading = false
+                    )
+                }
             }
         }
     }
 }
 
-sealed class SearchUiState {
-    object Idle : SearchUiState()
-    object Loading : SearchUiState()
-    data class Success(val results: List<SemanticResult>) : SearchUiState()
-    data class Error(val message: String) : SearchUiState()
-}
+data class SearchUiState(
+    val query: String = "",
+    val results: List<SemanticResult> = emptyList(),
+    val isLoading: Boolean = false,
+    val error: String? = null,
+    val searchTimeMs: Long = 0
+)

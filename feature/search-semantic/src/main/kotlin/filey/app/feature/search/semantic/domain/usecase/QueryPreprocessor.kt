@@ -1,23 +1,12 @@
 package filey.app.feature.search.semantic.domain.usecase
 
-class QueryPreprocessor {
+import filey.app.feature.search.semantic.domain.model.SearchIntent
+import filey.app.feature.search.semantic.domain.model.SearchQuery
+import javax.inject.Inject
 
-    data class QueryInterpretation(
-        val originalQuery: String,
-        val normalizedQuery: String,
-        val detectedIntent: SearchIntent,
-        val extractedFilters: Map<String, String>
-    )
+class QueryPreprocessor @Inject constructor() {
 
-    enum class SearchIntent {
-        FIND_DOCUMENT,
-        FIND_BY_DATE,
-        FIND_BY_CONTENT,
-        FIND_BY_TYPE,
-        GENERAL
-    }
-
-    fun analyze(query: String): QueryInterpretation {
+    fun analyze(query: String): SearchQuery {
         val normalized = query.lowercase().trim()
 
         val intent = when {
@@ -51,11 +40,11 @@ class QueryPreprocessor {
             .filter { it !in stopwords && it.length > 1 }
             .joinToString(" ")
 
-        return QueryInterpretation(
+        return SearchQuery(
             originalQuery = query,
             normalizedQuery = cleanedQuery.ifEmpty { normalized },
-            detectedIntent = intent,
-            extractedFilters = filters
+            intent = intent,
+            filters = filters
         )
     }
 
