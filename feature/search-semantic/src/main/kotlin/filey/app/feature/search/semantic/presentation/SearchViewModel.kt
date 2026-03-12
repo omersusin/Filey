@@ -42,7 +42,11 @@ class SearchViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
             try {
-                val result = semanticSearchUseCase(query)
+                val result = semanticSearchUseCase?.invoke(query)
+                if (result == null) {
+                    _uiState.update { it.copy(error = "Arama motoru başlatılamadı", isLoading = false) }
+                    return@launch
+                }
                 _uiState.update { 
                     it.copy(
                         results = result.results,
