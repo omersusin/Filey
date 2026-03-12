@@ -5,9 +5,8 @@ import filey.app.feature.search.semantic.data.vectordb.VectorStore
 import filey.app.feature.search.semantic.domain.model.SearchIntent
 import filey.app.feature.search.semantic.domain.model.SearchQuery
 import filey.app.feature.search.semantic.domain.model.SemanticResult
-import javax.inject.Inject
 
-class SemanticSearchUseCase @Inject constructor(
+class SemanticSearchUseCase(
     private val embeddingGenerator: EmbeddingGenerator,
     private val vectorStore: VectorStore,
     private val queryPreprocessor: QueryPreprocessor

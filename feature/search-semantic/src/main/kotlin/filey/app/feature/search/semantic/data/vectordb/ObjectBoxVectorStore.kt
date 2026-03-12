@@ -7,9 +7,8 @@ import io.objectbox.BoxStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
-import javax.inject.Inject
 
-class ObjectBoxVectorStore @Inject constructor(
+class ObjectBoxVectorStore(
     private val boxStore: BoxStore
 ) : VectorStore {
     

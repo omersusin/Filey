@@ -2,9 +2,8 @@ package filey.app.feature.search.semantic.domain.usecase
 
 import filey.app.feature.search.semantic.domain.model.SearchIntent
 import filey.app.feature.search.semantic.domain.model.SearchQuery
-import javax.inject.Inject
 
-class QueryPreprocessor @Inject constructor() {
+class QueryPreprocessor {
 
     fun analyze(query: String): SearchQuery {
         val normalized = query.lowercase().trim()

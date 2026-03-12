@@ -2,9 +2,8 @@ package filey.app.feature.search.semantic.data.indexer
 
 import filey.app.feature.search.semantic.domain.model.DocumentChunk
 import filey.app.feature.search.semantic.domain.model.DocumentMetadata
-import javax.inject.Inject
 
-class SemanticChunker @Inject constructor() {
+class SemanticChunker {
     
     private val maxChunkSize: Int = 512
     private val overlapSize: Int = 128

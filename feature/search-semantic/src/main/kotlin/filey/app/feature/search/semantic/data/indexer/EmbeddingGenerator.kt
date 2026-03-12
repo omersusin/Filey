@@ -11,10 +11,9 @@ import org.tensorflow.lite.gpu.GpuDelegate
 import org.tensorflow.lite.nnapi.NnApiDelegate
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
-import javax.inject.Inject
 import kotlin.math.sqrt
 
-class EmbeddingGenerator @Inject constructor(
+class EmbeddingGenerator(
     @ApplicationContext private val context: Context
 ) {
     // all-MiniLM-L6-v2 — 384 boyutlu vektör, ~80MB, çok hızlı

@@ -9,9 +9,8 @@ import filey.app.feature.search.semantic.domain.model.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
-import javax.inject.Inject
 
-class ContentExtractor @Inject constructor(
+class ContentExtractor(
     @ApplicationContext private val context: Context,
     private val ocrExtractor: OcrContentExtractor,
     private val metadataExtractor: MetadataExtractor
