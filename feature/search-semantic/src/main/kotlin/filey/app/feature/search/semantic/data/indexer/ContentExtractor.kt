@@ -4,14 +4,13 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
-import dagger.hilt.android.qualifiers.ApplicationContext
 import filey.app.feature.search.semantic.domain.model.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 
 class ContentExtractor(
-    @ApplicationContext private val context: Context,
+    private val context: Context,
     private val ocrExtractor: OcrContentExtractor,
     private val metadataExtractor: MetadataExtractor
 ) {

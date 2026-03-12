@@ -1,7 +1,6 @@
 package filey.app.feature.search.semantic.data.indexer
 
 import android.content.Context
-import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -14,7 +13,7 @@ import java.nio.ByteOrder
 import kotlin.math.sqrt
 
 class EmbeddingGenerator(
-    @ApplicationContext private val context: Context
+    private val context: Context
 ) {
     // all-MiniLM-L6-v2 — 384 boyutlu vektör, ~80MB, çok hızlı
     // Alternatif: multilingual-e5-small (çok dilli destek, Türkçe dahil)
