@@ -29,6 +29,7 @@ mlkitImageLabelingCustom = "17.0.2"
 tensorflowTaskVision = "0.4.4"
 room = "2.6.1"
 ksp = "1.9.24-1.0.20"
+kotlinxSerialization = "1.6.3"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -87,6 +88,8 @@ shizuku-provider = { group = "dev.rikka.shizuku", name = "provider", version.ref
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "kotlinxCoroutines" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "kotlinxCoroutines" }
 
+kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "kotlinxSerialization" }
+
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 
 [plugins]
@@ -95,3 +98,4 @@ android-library = { id = "com.android.library", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 objectbox = { id = "io.objectbox", version.ref = "objectbox" }
 ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+kotlinx-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
