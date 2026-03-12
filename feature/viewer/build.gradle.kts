@@ -18,6 +18,7 @@ android {
 
 dependencies {
     implementation(project(":core"))
+    implementation(project(":feature:smart-tags"))
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(libs.androidx.lifecycle.runtime)

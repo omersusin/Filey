@@ -2,9 +2,9 @@ name: Build Filey APK
 
 on:
   push:
-    branches: [ main ]
+    branches: [ "**" ]
   pull_request:
-    branches: [ main ]
+    branches: [ "**" ]
   workflow_dispatch:
 
 jobs:
@@ -23,24 +23,23 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
-        with:
-          gradle-version: 8.7
-          cache-disabled: false
-          cache-read-only: false
 
-      - name: Build APKs
-        run: gradle assembleDebug assembleRelease --no-daemon --stacktrace --build-cache
+      - name: Grant execute permission
+        run: chmod +x gradlew || true
+
+      - name: Build APKs and Run Tests
+        run: ./gradlew test assembleDebug assembleRelease --no-daemon --stacktrace
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
         with:
           name: filey-debug-apk
           path: app/build/outputs/apk/debug/*.apk
-          retention-days: 7
+          retention-days: 30
 
-      - name: Upload Release APK
+      - name: Upload Release APK (Unsigned)
         uses: actions/upload-artifact@v4
         with:
           name: filey-release-apk
           path: app/build/outputs/apk/release/*.apk
-          retention-days: 7
+          retention-days: 30

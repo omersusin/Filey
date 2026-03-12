@@ -1,5 +1,22 @@
--keepattributes *Annotation*
--keep class filey.app.** { *; }
--dontwarn org.slf4j.impl.StaticLoggerBinder
--dontwarn org.apache.commons.compress.**
--dontwarn com.github.junrar.**
+# ── libsu ──
+-keep class com.topjohnwu.superuser.** { *; }
+-dontwarn com.topjohnwu.superuser.**
+
+# ── Shizuku ──
+-keep class rikka.shizuku.** { *; }
+-keep class moe.shizuku.** { *; }
+-dontwarn rikka.shizuku.**
+
+# ── Media3 / ExoPlayer ──
+-keep class androidx.media3.** { *; }
+-dontwarn androidx.media3.**
+
+# ── Coil ──
+-dontwarn coil.**
+
+# ── DataStore ──
+-keep class androidx.datastore.** { *; }
+
+# ── TensorFlow Lite ──
+-dontwarn org.tensorflow.lite.**
+-keep class org.tensorflow.lite.** { *; }

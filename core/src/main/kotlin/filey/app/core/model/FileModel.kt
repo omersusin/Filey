@@ -3,13 +3,16 @@ package filey.app.core.model
 data class FileModel(
     val name: String,
     val path: String,
-    val size: Long,
-    val lastModified: Long,
     val isDirectory: Boolean,
-    val isHidden: Boolean,
-    val extension: String,
-    val type: FileType,
-    val sizeFormatted: String,
-    val dateFormatted: String,
-    val childCount: Int = 0
+    val size: Long = 0L,
+    val lastModified: Long = 0L,
+    val isHidden: Boolean = false,
+    val extension: String = "",
+    val mimeType: String = "",
+    val permissions: String = "",
+    val owner: String = "",
+    val childCount: Int = 0,
+    val tags: List<String> = emptyList(), // Added tags support
+    val uri: String = "", // Added for content extraction
+    val category: FileCategory = FileCategory.OTHER
 )

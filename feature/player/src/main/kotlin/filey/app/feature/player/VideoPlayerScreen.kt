@@ -1,5 +1,8 @@
 package filey.app.feature.player
 
+import android.net.Uri
+import android.view.ViewGroup.LayoutParams.MATCH_PARENT
+import android.widget.FrameLayout
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -10,33 +13,48 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VideoPlayerScreen(
-    filePath: String,
-    onBack: () -> Unit,
-    viewModel: PlayerViewModel = viewModel()
+    path: String,
+    onBack: () -> Unit
 ) {
     val context = LocalContext.current
-    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val file = remember { File(path) }
 
-    LaunchedEffect(filePath) { viewModel.initPlayer(context, filePath) }
+    val exoPlayer = remember {
+        ExoPlayer.Builder(context).build().apply {
+            val mediaItem = MediaItem.fromUri(Uri.fromFile(file))
+            setMediaItem(mediaItem)
+            prepare()
+            playWhenReady = true
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose { exoPlayer.release() }
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(state.fileName, maxLines = 1) },
+                title = { Text(file.name, maxLines = 1) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = {
+                        exoPlayer.stop()
+                        onBack()
+                    }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Geri")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Black.copy(alpha = 0.7f),
+                    containerColor = Color.Black.copy(alpha = 0.6f),
                     titleContentColor = Color.White,
                     navigationIconContentColor = Color.White
                 )
@@ -49,20 +67,16 @@ fun VideoPlayerScreen(
                 .padding(padding)
                 .background(Color.Black)
         ) {
-            val exoPlayer = viewModel.getPlayer()
-            if (exoPlayer != null) {
-                AndroidView(
-                    factory = { ctx ->
-                        PlayerView(ctx).apply {
-                            player = exoPlayer
-                            useController = true
-                            setShowNextButton(false)
-                            setShowPreviousButton(false)
-                        }
-                    },
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
+            AndroidView(
+                factory = { ctx ->
+                    PlayerView(ctx).apply {
+                        player = exoPlayer
+                        useController = true
+                        layoutParams = FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT)
+                    }
+                },
+                modifier = Modifier.fillMaxSize()
+            )
         }
     }
 }

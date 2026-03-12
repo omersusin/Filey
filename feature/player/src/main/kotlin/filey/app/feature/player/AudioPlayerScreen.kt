@@ -1,6 +1,8 @@
 package filey.app.feature.player
 
+import android.net.Uri
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -8,38 +10,72 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import androidx.media3.common.MediaItem
+import androidx.media3.common.Player
+import androidx.media3.exoplayer.ExoPlayer
+import filey.app.core.model.FileUtils
 import kotlinx.coroutines.delay
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AudioPlayerScreen(
-    filePath: String,
-    onBack: () -> Unit,
-    viewModel: PlayerViewModel = viewModel()
+    path: String,
+    onBack: () -> Unit
 ) {
     val context = LocalContext.current
-    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val file = remember { File(path) }
 
-    LaunchedEffect(filePath) { viewModel.initPlayer(context, filePath) }
+    val exoPlayer = remember {
+        ExoPlayer.Builder(context).build().apply {
+            val mediaItem = MediaItem.fromUri(Uri.fromFile(file))
+            setMediaItem(mediaItem)
+            prepare()
+        }
+    }
 
-    LaunchedEffect(state.isPlaying) {
-        while (state.isPlaying) {
-            viewModel.updatePosition()
-            delay(500)
+    var isPlaying by remember { mutableStateOf(false) }
+    var currentPosition by remember { mutableLongStateOf(0L) }
+    var duration by remember { mutableLongStateOf(0L) }
+
+    LaunchedEffect(isPlaying) {
+        while (isPlaying) {
+            currentPosition = exoPlayer.currentPosition
+            duration = exoPlayer.duration.coerceAtLeast(1L)
+            delay(200)
+        }
+    }
+
+    DisposableEffect(exoPlayer) {
+        val listener = object : Player.Listener {
+            override fun onIsPlayingChanged(playing: Boolean) {
+                isPlaying = playing
+            }
+        }
+        exoPlayer.addListener(listener)
+        onDispose {
+            exoPlayer.removeListener(listener)
+            exoPlayer.release()
         }
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Müzik Çalar") },
+                title = { Text(file.name, maxLines = 1) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = {
+                        exoPlayer.stop()
+                        onBack()
+                    }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, "Geri")
                     }
                 }
@@ -54,27 +90,45 @@ fun AudioPlayerScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Icon(
-                imageVector = Icons.Default.MusicNote,
-                contentDescription = null,
-                modifier = Modifier.size(120.dp),
-                tint = MaterialTheme.colorScheme.primary
-            )
+            Box(Modifier.size(240.dp), contentAlignment = Alignment.Center) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    shape = RoundedCornerShape(24.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant
+                ) {
+                    Icon(
+                        Icons.Default.MusicNote,
+                        null,
+                        modifier = Modifier.size(120.dp).padding(48.dp),
+                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                    )
+                }
+                AsyncImage(
+                    model = ImageRequest.Builder(LocalContext.current)
+                        .data(file)
+                        .crossfade(true)
+                        .build(),
+                    contentDescription = null,
+                    modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(24.dp)),
+                    contentScale = ContentScale.Crop
+                )
+            }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(Modifier.height(32.dp))
 
             Text(
-                text = state.fileName,
+                text = file.nameWithoutExtension,
                 style = MaterialTheme.typography.titleLarge,
-                textAlign = TextAlign.Center,
-                maxLines = 2
+                textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(Modifier.height(32.dp))
 
             Slider(
-                value = if (state.duration > 0) state.position.toFloat() / state.duration.toFloat() else 0f,
-                onValueChange = { viewModel.seekTo((it * state.duration).toLong()) },
+                value = if (duration > 0) currentPosition.toFloat() / duration else 0f,
+                onValueChange = { fraction ->
+                    exoPlayer.seekTo((fraction * duration).toLong())
+                },
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -82,34 +136,40 @@ fun AudioPlayerScreen(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text(formatTime(state.position), style = MaterialTheme.typography.bodySmall)
-                Text(formatTime(state.duration), style = MaterialTheme.typography.bodySmall)
+                Text(formatTime(currentPosition), style = MaterialTheme.typography.bodySmall)
+                Text(formatTime(duration), style = MaterialTheme.typography.bodySmall)
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(Modifier.height(24.dp))
 
             Row(
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth()
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                IconButton(onClick = { viewModel.seekBack() }) {
-                    Icon(Icons.Default.Replay10, "10s Geri", modifier = Modifier.size(36.dp))
+                IconButton(onClick = {
+                    exoPlayer.seekTo((exoPlayer.currentPosition - 10_000).coerceAtLeast(0))
+                }) {
+                    Icon(Icons.Default.Replay10, null)
                 }
 
                 FilledIconButton(
-                    onClick = { viewModel.togglePlayPause() },
+                    onClick = {
+                        if (exoPlayer.isPlaying) exoPlayer.pause()
+                        else exoPlayer.play()
+                    },
                     modifier = Modifier.size(64.dp)
                 ) {
                     Icon(
-                        imageVector = if (state.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                        contentDescription = if (state.isPlaying) "Duraklat" else "Oynat",
-                        modifier = Modifier.size(36.dp)
+                        if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        null,
+                        modifier = Modifier.size(32.dp)
                     )
                 }
 
-                IconButton(onClick = { viewModel.seekForward() }) {
-                    Icon(Icons.Default.Forward10, "10s İleri", modifier = Modifier.size(36.dp))
+                IconButton(onClick = {
+                    exoPlayer.seekTo(exoPlayer.currentPosition + 10_000)
+                }) {
+                    Icon(Icons.Default.Forward10, null)
                 }
             }
         }
@@ -117,8 +177,9 @@ fun AudioPlayerScreen(
 }
 
 private fun formatTime(ms: Long): String {
-    val totalSec = ms / 1000
-    val min = totalSec / 60
-    val sec = totalSec % 60
-    return String.format("%d:%02d", min, sec)
+    if (ms <= 0) return "0:00"
+    val totalSeconds = ms / 1000
+    val minutes = totalSeconds / 60
+    val seconds = totalSeconds % 60
+    return "$minutes:${seconds.toString().padStart(2, '0')}"
 }

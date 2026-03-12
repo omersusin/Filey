@@ -1,385 +1,359 @@
 package filey.app.feature.browser
 
-import android.content.Intent
-import android.net.Uri
+import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Build
-import android.provider.Settings
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.*
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.*
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ViewList
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
-import filey.app.core.model.FileType
-import filey.app.core.ui.components.EmptyState
-import filey.app.core.ui.components.LoadingIndicator
-import filey.app.core.ui.components.PermissionScreen
-import filey.app.core.util.PermissionHelper
+import filey.app.core.model.*
+import filey.app.feature.browser.actions.ActionRegistry
+import filey.app.feature.browser.actions.ActionResult
+import filey.app.feature.browser.actions.OpenWithAction
 import filey.app.feature.browser.components.*
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BrowserScreen(
-    initialPath: String = "/storage/emulated/0",
-    onNavigate: (String) -> Unit = {},
-    onOpenImage: (String) -> Unit = {},
-    onOpenVideo: (String) -> Unit = {},
-    onOpenAudio: (String) -> Unit = {},
-    onOpenText: (String) -> Unit = {},
-    onOpenArchive: (String) -> Unit = {},
-    onBack: (() -> Unit)? = null,
-    viewModel: BrowserViewModel = viewModel()
+    onNavigateToImage: (String) -> Unit,
+    onNavigateToVideo: (String) -> Unit,
+    onNavigateToAudio: (String) -> Unit,
+    onNavigateToEditor: (String) -> Unit,
+    onNavigateToArchive: (String) -> Unit,
+    onNavigateToPdf: (String) -> Unit,
+    onNavigateToSettings: () -> Unit,
+    onNavigateToDashboard: () -> Unit,
+    onNavigateToTrash: () -> Unit,
+    onNavigateToServer: () -> Unit,
+    viewModel: BrowserViewModel = viewModel(factory = BrowserViewModel.Factory)
 ) {
     val context = LocalContext.current
-    val state by viewModel.uiState.collectAsStateWithLifecycle()
-    var hasPermission by remember { mutableStateOf(PermissionHelper.hasStoragePermission(context)) }
-    var showSortSheet by remember { mutableStateOf(false) }
-    var showOptionsSheet by remember { mutableStateOf(false) }
-    var selectedFileIndex by remember { mutableIntStateOf(-1) }
-    var showNewFolderDialog by remember { mutableStateOf(false) }
-    var showRenameDialog by remember { mutableStateOf(false) }
-    var showDeleteDialog by remember { mutableStateOf(false) }
-    var showAboutDialog by remember { mutableStateOf(false) }
+    val uiState by viewModel.uiState.collectAsState()
+    val snackbarMessage by viewModel.snackbarEvent.collectAsState()
 
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+    val actionRegistry = remember { ActionRegistry.createDefault() }
+    val actionCallback = remember(viewModel, context) { viewModel.createActionCallback(context) }
+
+    // ── Permission Management ──
+    var hasPermission by remember { 
+        mutableStateOf(checkStoragePermission(context)) 
+    }
     val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) {
-        hasPermission = PermissionHelper.hasStoragePermission(context)
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { grants ->
+        hasPermission = grants.values.all { it }
+    }
+
+    LaunchedEffect(Unit) {
+        if (!hasPermission) {
+            permissionLauncher.launch(storagePermissions())
+        }
     }
 
     LaunchedEffect(hasPermission) {
-        if (hasPermission) viewModel.loadDirectory(initialPath)
+        if (hasPermission) {
+            viewModel.refreshCurrentDirectory()
+        }
     }
 
-    if (!hasPermission) {
-        PermissionScreen(onRequestPermission = {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
-                    data = Uri.parse("package:${context.packageName}")
+    // Snackbar & Error Handling
+    LaunchedEffect(snackbarMessage) {
+        snackbarMessage?.let { data ->
+            scope.launch {
+                val result = snackbarHostState.showSnackbar(
+                    message = data.message,
+                    actionLabel = data.actionLabel,
+                    duration = SnackbarDuration.Short
+                )
+                if (result == SnackbarResult.ActionPerformed) {
+                    data.onAction?.invoke()
                 }
-                permissionLauncher.launch(intent)
-            }
-        })
-        return
-    }
-
-    Scaffold(
-        topBar = {
-            if (state.isSearching) {
-                SearchBar(
-                    query = state.searchQuery,
-                    onQueryChange = { viewModel.setSearchQuery(it) },
-                    onClose = { viewModel.toggleSearch() }
-                )
-            } else {
-                TopAppBar(
-                    title = {
-                        Text(
-                            text = state.currentPath.substringAfterLast("/").ifEmpty { "/" },
-                            maxLines = 1
-                        )
-                    },
-                    navigationIcon = {
-                        if (onBack != null) {
-                            IconButton(onClick = onBack) {
-                                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Geri")
-                            }
-                        }
-                    },
-                    actions = {
-                        IconButton(onClick = { showAboutDialog = true }) {
-                            Icon(Icons.Default.Info, "Hakkında")
-                        }
-                        IconButton(onClick = { viewModel.toggleSearch() }) {
-                            Icon(Icons.Default.Search, "Ara")
-                        }
-                        IconButton(onClick = { viewModel.toggleViewMode() }) {
-                            Icon(
-                                if (state.isGridView) Icons.AutoMirrored.Filled.ViewList else Icons.Default.GridView,
-                                "Görünüm"
-                            )
-                        }
-                        IconButton(onClick = { showSortSheet = true }) {
-                            Icon(Icons.AutoMirrored.Filled.Sort, "Sırala")
-                        }
-                        IconButton(onClick = { showNewFolderDialog = true }) {
-                            Icon(Icons.Default.CreateNewFolder, "Yeni Klasör")
-                        }
-                        if (state.clipboard != null) {
-                            IconButton(onClick = { viewModel.paste() }) {
-                                Icon(Icons.Default.ContentPaste, "Yapıştır")
-                            }
-                        }
-                    }
-                )
+                viewModel.clearSnackbar()
             }
         }
-    ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            Column(modifier = Modifier.fillMaxSize()) {
+    }
+
+    // Navigation Drawer State
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
+
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            BrowserDrawerContent(
+                uiState = uiState,
+                onDashboard = onNavigateToDashboard,
+                onTrash = onNavigateToTrash,
+                onServer = onNavigateToServer,
+                onSettings = onNavigateToSettings,
+                onNavigate = { path ->
+                    viewModel.navigateTo(path)
+                    scope.launch { drawerState.close() }
+                },
+                onFileClick = { file ->
+                    handleFileClick(
+                        file = file,
+                        viewModel = viewModel,
+                        onImage = onNavigateToImage,
+                        onVideo = onNavigateToVideo,
+                        onAudio = onNavigateToAudio,
+                        onText = onNavigateToEditor,
+                        onArchive = onNavigateToArchive,
+                        onPdf = onNavigateToPdf,
+                        context = context,
+                        callback = actionCallback
+
+                    )
+                    scope.launch { drawerState.close() }
+                }
+            )
+        }
+    ) {
+        // ... (Scaffold structure will be optimized next)
+        Scaffold(
+            snackbarHost = { SnackbarHost(snackbarHostState) },
+            topBar = {
+                BrowserTopBar(
+                    uiState = uiState,
+                    viewModel = viewModel,
+                    onOpenDrawer = { scope.launch { drawerState.open() } },
+                    onNavigateToDashboard = onNavigateToDashboard,
+                    onSettings = onNavigateToSettings
+                )
+            }
+        ) { padding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+            ) {
+                // Shelf / Staging Area
+                AnimatedVisibility(
+                    visible = uiState.shelf.isNotEmpty(),
+                    enter = slideInVertically() + fadeIn(),
+                    exit = slideOutVertically() + fadeOut()
+                ) {
+                    ShelfBar(
+                        count = uiState.shelf.size,
+                        onClear = { viewModel.clearShelf() },
+                        onPaste = { viewModel.pasteFromShelf() }
+                    )
+                }
+
+                // PathBar with breadcrumbs
                 PathBar(
-                    path = state.currentPath,
-                    onPathClick = { onNavigate(it) }
+                    segments = uiState.pathSegments,
+                    onSegmentClick = { segment -> viewModel.navigateTo(segment.fullPath) }
                 )
 
-                when {
-                    state.isLoading -> LoadingIndicator()
-                    state.files.isEmpty() -> EmptyState(message = "Bu klasör boş")
-                    state.isGridView -> FileGrid(
-                        files = state.files,
-                        onClick = { file ->
-                            when {
-                                file.isDirectory -> onNavigate(file.path)
-                                file.type == FileType.IMAGE -> onOpenImage(file.path)
-                                file.type == FileType.VIDEO -> onOpenVideo(file.path)
-                                file.type == FileType.AUDIO -> onOpenAudio(file.path)
-                                file.type == FileType.ARCHIVE -> onOpenArchive(file.path)
-                                file.type == FileType.TEXT -> onOpenText(file.path)
-                                else -> {
-                                    val intent = Intent(Intent.ACTION_VIEW).apply {
-                                        val uri = androidx.core.content.FileProvider.getUriForFile(
-                                            context,
-                                            "${context.packageName}.fileprovider",
-                                            java.io.File(file.path)
-                                        )
-                                        setDataAndType(uri, filey.app.core.util.FileUtils.getMimeType(file.path))
-                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                    }
-                                    try {
-                                        context.startActivity(intent)
-                                    } catch (_: Exception) {
-                                        onOpenText(file.path)
-                                    }
-                                }
-
-                            }
-                        },
-                        onLongClick = { index ->
-                            selectedFileIndex = index
-                            showOptionsSheet = true
-                        }
-                    )
-                    else -> FileList(
-                        files = state.files,
-                        onClick = { file ->
-                            when {
-                                file.isDirectory -> onNavigate(file.path)
-                                file.type == FileType.IMAGE -> onOpenImage(file.path)
-                                file.type == FileType.VIDEO -> onOpenVideo(file.path)
-                                file.type == FileType.AUDIO -> onOpenAudio(file.path)
-                                file.type == FileType.ARCHIVE -> onOpenArchive(file.path)
-                                file.type == FileType.TEXT -> onOpenText(file.path)
-                                else -> {
-                                    val intent = Intent(Intent.ACTION_VIEW).apply {
-                                        val uri = androidx.core.content.FileProvider.getUriForFile(
-                                            context,
-                                            "${context.packageName}.fileprovider",
-                                            java.io.File(file.path)
-                                        )
-                                        setDataAndType(uri, filey.app.core.util.FileUtils.getMimeType(file.path))
-                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                    }
-                                    try {
-                                        context.startActivity(intent)
-                                    } catch (_: Exception) {
-                                        onOpenText(file.path)
-                                    }
-                                }
-
-                            }
-                        },
-                        onLongClick = { index ->
-                            selectedFileIndex = index
-                            showOptionsSheet = true
-                        }
-                    )
-                }
-            }
-
-            // İlerleme Kartı
-            state.operationProgress?.let { progress ->
-                OperationProgressCard(
-                    fileName = state.clipboard?.file?.name ?: "Dosya",
-                    progress = progress,
-                    modifier = Modifier.align(Alignment.BottomCenter)
-                )
-            }
-        }
-    }
-
-    if (showSortSheet) {
-        SortSheet(
-            currentSort = state.sortOption,
-            showHidden = state.showHidden,
-            onSortSelected = { viewModel.setSortOption(it) },
-            onToggleHidden = { viewModel.toggleShowHidden() },
-            onDismiss = { showSortSheet = false }
-        )
-    }
-
-    if (showOptionsSheet && selectedFileIndex in state.files.indices) {
-        val file = state.files[selectedFileIndex]
-        FileOptionsSheet(
-            file = file,
-            onCopy = { viewModel.copyFile(file); showOptionsSheet = false },
-            onCut = { viewModel.cutFile(file); showOptionsSheet = false },
-            onRename = { showOptionsSheet = false; showRenameDialog = true },
-            onDelete = { showOptionsSheet = false; showDeleteDialog = true },
-            onDismiss = { showOptionsSheet = false }
-        )
-    }
-
-    if (showNewFolderDialog) {
-        var name by remember { mutableStateOf("") }
-        AlertDialog(
-            onDismissRequest = { showNewFolderDialog = false },
-            title = { Text("Yeni Klasör") },
-            text = {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Klasör adı") },
-                    singleLine = true
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    if (name.isNotBlank()) {
-                        viewModel.createFolder(name)
-                        showNewFolderDialog = false
-                    }
-                }) { Text("Oluştur") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showNewFolderDialog = false }) { Text("İptal") }
-            }
-        )
-    }
-
-    if (showRenameDialog && selectedFileIndex in state.files.indices) {
-        val file = state.files[selectedFileIndex]
-        var newName by remember { mutableStateOf(file.name) }
-        AlertDialog(
-            onDismissRequest = { showRenameDialog = false },
-            title = { Text("Yeniden Adlandır") },
-            text = {
-                OutlinedTextField(
-                    value = newName,
-                    onValueChange = { newName = it },
-                    label = { Text("Yeni ad") },
-                    singleLine = true
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    if (newName.isNotBlank()) {
-                        viewModel.renameFile(file, newName)
-                        showRenameDialog = false
-                    }
-                }) { Text("Kaydet") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showRenameDialog = false }) { Text("İptal") }
-            }
-        )
-    }
-
-    if (showDeleteDialog && selectedFileIndex in state.files.indices) {
-        val file = state.files[selectedFileIndex]
-        AlertDialog(
-            onDismissRequest = { showDeleteDialog = false },
-            title = { Text("Sil") },
-            text = { Text("${file.name} silinsin mi?") },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.deleteFile(file)
-                    showDeleteDialog = false
-                }) { Text("Sil") }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDeleteDialog = false }) { Text("İptal") }
-            }
-        )
-    }
-
-    if (showAboutDialog) {
-        AlertDialog(
-            onDismissRequest = { showAboutDialog = false },
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        Icons.Default.Info,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(32.dp)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text("Filey Hakkında")
-                }
-            },
-            text = {
-                Column {
+                // Operation progress indicator
+                if (uiState.operationMessage != null) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                     Text(
-                        "Filey - Modern Dosya Yöneticisi",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text("Sürüm: 1.0.0", style = MaterialTheme.typography.bodySmall)
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        "Jetpack Compose ve Material 3 ile geliştirilmiş, Root desteğine sahip hızlı bir dosya yöneticisi.",
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        "Geliştirici: Ömer Süsin",
-                        style = MaterialTheme.typography.bodySmall,
+                        text = uiState.operationMessage!!,
+                        style = MaterialTheme.typography.labelSmall,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
                         color = MaterialTheme.colorScheme.primary
                     )
                 }
-            },
-            confirmButton = {
-                TextButton(onClick = { showAboutDialog = false }) {
-                    Text("Kapat")
+
+                // Main Content
+                Box(modifier = Modifier.weight(1f)) {
+                    when {
+                        !hasPermission -> PermissionRequiredContent { 
+                            permissionLauncher.launch(storagePermissions()) 
+                        }
+                        uiState.isLoading -> LoadingContent()
+                        uiState.error != null && uiState.files.isEmpty() -> ErrorContent(uiState.error!!) {
+                            viewModel.refreshCurrentDirectory()
+                        }
+                        uiState.displayFiles.isEmpty() -> EmptyContent(uiState.isSearchActive)
+                        else -> {
+                            FileContent(
+                                files = uiState.displayFiles,
+                                viewMode = uiState.viewMode,
+                                selectedFiles = uiState.selectedFiles,
+                                isMultiSelectActive = uiState.isMultiSelectActive,
+                                onFileClick = { file ->
+                                    if (file.name == "^") {
+                                        viewModel.navigateUp()
+                                    } else if (uiState.isMultiSelectActive) {
+                                        viewModel.toggleFileSelection(file.path)
+                                    } else {
+                                        handleFileClick(
+                                            file = file,
+                                            viewModel = viewModel,
+                                            onImage = onNavigateToImage,
+                                            onVideo = onNavigateToVideo,
+                                            onAudio = onNavigateToAudio,
+                                            onText = onNavigateToEditor,
+                                            onArchive = onNavigateToArchive,
+                                            onPdf = onNavigateToPdf,
+                                            context = context,
+                                            callback = actionCallback
+
+                                        )
+                                    }
+                                },
+                                onFileLongClick = { file ->
+                                    if (file.name != "^") {
+                                        if (uiState.isMultiSelectActive) {
+                                            viewModel.toggleFileSelection(file.path)
+                                        } else {
+                                            // Handle file options
+                                        }
+                                    }
+                                }
+                            )
+                        }
+                    }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun ShelfBar(count: Int, onClear: () -> Unit, onPaste: () -> Unit) {
+    Surface(
+        color = MaterialTheme.colorScheme.primaryContainer,
+        modifier = Modifier.fillMaxWidth(),
+        tonalElevation = 4.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.Inventory2, null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
+            Spacer(Modifier.width(16.dp))
+            Text(
+                "Rafta $count öğe var",
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                modifier = Modifier.weight(1f)
+            )
+            TextButton(onClick = onClear) {
+                Text("Temizle", color = MaterialTheme.colorScheme.onPrimaryContainer)
+            }
+            Button(
+                onClick = onPaste,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary
+                ),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Buraya Koy")
+            }
+        }
+    }
+}
+
+// ── Helper Functions for Permissions ──
+
+private fun checkStoragePermission(context: android.content.Context): Boolean {
+    val permissions = storagePermissions()
+    return permissions.all {
+        ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
+    }
+}
+
+private fun storagePermissions(): Array<String> {
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        arrayOf(
+            Manifest.permission.READ_MEDIA_IMAGES,
+            Manifest.permission.READ_MEDIA_VIDEO,
+            Manifest.permission.READ_MEDIA_AUDIO
+        )
+    } else {
+        arrayOf(
+            Manifest.permission.READ_EXTERNAL_STORAGE,
+            Manifest.permission.WRITE_EXTERNAL_STORAGE
         )
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun SearchBar(
-    query: String,
-    onQueryChange: (String) -> Unit,
-    onClose: () -> Unit
+private fun handleFileClick(
+    file: FileModel,
+    viewModel: BrowserViewModel,
+    onImage: (String) -> Unit,
+    onVideo: (String) -> Unit,
+    onAudio: (String) -> Unit,
+    onText: (String) -> Unit,
+    onArchive: (String) -> Unit,
+    onPdf: (String) -> Unit,
+    context: android.content.Context,
+    callback: filey.app.feature.browser.actions.FileActionCallback
 ) {
-    TopAppBar(
-        title = {
-            OutlinedTextField(
-                value = query,
-                onValueChange = onQueryChange,
-                placeholder = { Text("Dosya ara...") },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = MaterialTheme.colorScheme.primary
-                )
-            )
-        },
-        navigationIcon = {
-            IconButton(onClick = onClose) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, "Kapat")
+    if (file.isDirectory) {
+        viewModel.navigateTo(file.path)
+        return
+    }
+    viewModel.addToRecents(file.path)
+    val scope = kotlinx.coroutines.MainScope() 
+    when (FileUtils.getFileType(file.path, false)) {
+        FileType.IMAGE -> onImage(file.path)
+        FileType.VIDEO -> onVideo(file.path)
+        FileType.AUDIO -> onAudio(file.path)
+        FileType.TEXT -> onText(file.path)
+        FileType.ARCHIVE -> onArchive(file.path)
+        FileType.PDF -> onPdf(file.path)
+        else -> {
+            scope.launch {
+                OpenWithAction().execute(context, file, callback)
             }
         }
-    )
+    }
+}
+
+@Composable
+fun LoadingContent() {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        CircularProgressIndicator(strokeWidth = 3.dp)
+    }
+}
+
+@Composable
+fun EmptyContent(isSearch: Boolean) {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Icon(
+            imageVector = if (isSearch) Icons.Default.SearchOff else Icons.Default.FolderOpen,
+            contentDescription = null,
+            modifier = Modifier.size(80.dp),
+            tint = MaterialTheme.colorScheme.outlineVariant
+        )
+        Spacer(Modifier.height(16.dp))
+        Text(
+            text = if (isSearch) "Sonuç bulunamadı" else "Bu klasör boş",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
 }

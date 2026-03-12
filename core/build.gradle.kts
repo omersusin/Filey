@@ -48,6 +48,13 @@ dependencies {
     implementation(libs.junrar)
     implementation(libs.libsu.core)
     implementation(libs.libsu.service)
+    implementation(libs.androidx.datastore)
+    implementation(libs.shizuku.api)
+    implementation(libs.androidx.biometric)
+    implementation(libs.androidx.security.crypto)
 
     debugImplementation(libs.compose.ui.tooling)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
 }
