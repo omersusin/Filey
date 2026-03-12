@@ -1,7 +1,7 @@
 package filey.app.feature.browser.search
 
-import filey.app.core.model.FileItem
-import filey.app.core.model.toFileItem
+import filey.app.core.model.FileModel
+import filey.app.core.model.toFileModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -20,7 +20,7 @@ data class SearchFilter(
 
 class FileSearchEngine {
 
-    fun search(rootPath: String, filter: SearchFilter): Flow<FileItem> = flow {
+    fun search(rootPath: String, filter: SearchFilter): Flow<FileModel> = flow {
         val rootDir = File(rootPath)
         if (!rootDir.exists() || !rootDir.isDirectory) return@flow
 
@@ -32,7 +32,7 @@ class FileSearchEngine {
             val children = current.listFiles() ?: continue
             for (child in children) {
                 if (child.isDirectory) queue.add(child)
-                if (matchesFilter(child, filter)) emit(child.toFileItem())
+                if (matchesFilter(child, filter)) emit(child.toFileModel())
             }
             yield()
         }

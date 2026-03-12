@@ -3,7 +3,6 @@ package filey.app.feature.browser.navigation
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import androidx.core.content.FileChooserActivity
 import androidx.navigation.NavController
 import filey.app.core.model.FileType
 import filey.app.core.navigation.Routes

@@ -78,3 +78,17 @@ object FileUtils {
         return sdf.format(Date(timestamp))
     }
 }
+
+fun File.toFileModel(): FileModel {
+    val isDir = this.isDirectory
+    return FileModel(
+        name = this.name,
+        path = this.absolutePath,
+        isDirectory = isDir,
+        size = if (isDir) 0L else this.length(),
+        lastModified = this.lastModified(),
+        isHidden = this.name.startsWith("."),
+        extension = if (isDir) "" else this.extension.lowercase(),
+        mimeType = if (isDir) "" else FileUtils.getMimeType(this.absolutePath)
+    )
+}

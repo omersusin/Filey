@@ -1,6 +1,6 @@
 package filey.app.feature.browser.sort
 
-import filey.app.core.model.FileItem
+import filey.app.core.model.FileModel
 
 enum class SortField     { NAME, SIZE, DATE, EXTENSION }
 enum class SortDirection { ASC, DESC }
@@ -11,8 +11,8 @@ data class SortOption(
     val foldersFirst: Boolean = true
 )
 
-fun List<FileItem>.sorted(option: SortOption): List<FileItem> {
-    val base: Comparator<FileItem> = when (option.field) {
+fun List<FileModel>.sorted(option: SortOption): List<FileModel> {
+    val base: Comparator<FileModel> = when (option.field) {
         SortField.NAME      -> compareBy { it.name.lowercase() }
         SortField.SIZE      -> compareBy { it.size }
         SortField.DATE      -> compareBy { it.lastModified }
@@ -20,7 +20,7 @@ fun List<FileItem>.sorted(option: SortOption): List<FileItem> {
     }
     val directed = if (option.direction == SortDirection.DESC) base.reversed() else base
     val final    = if (option.foldersFirst)
-        compareByDescending<FileItem> { it.isDirectory }.then(directed)
+        compareByDescending<FileModel> { it.isDirectory }.then(directed)
     else directed
     return sortedWith(final)
 }
