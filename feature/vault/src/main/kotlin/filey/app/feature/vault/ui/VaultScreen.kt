@@ -23,43 +23,42 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
+import filey.app.feature.vault.engine.BiometricVaultAuth
+import filey.app.feature.vault.engine.HardenedVaultCrypto
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VaultScreen(
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
+    val vaultCrypto = remember { HardenedVaultCrypto(context) }
+    val biometricAuth = remember { BiometricVaultAuth(vaultCrypto) }
+    
     var isUnlocked by remember { mutableStateOf(false) }
     var pin by remember { mutableStateOf("") }
-    var error by remember { mutableStateOf(false) }
-    val context = LocalContext.current
+    var error by remember { mutableStateOf<String?>(null) }
+    
+    val activity = context as FragmentActivity
 
-    // Biometric Auth
+    // Biometric Auth using Hardened Logic
     val authenticate = {
-        val executor = ContextCompat.getMainExecutor(context)
-        val biometricPrompt = BiometricPrompt(
-            context as FragmentActivity,
-            executor,
-            object : BiometricPrompt.AuthenticationCallback() {
-                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
-                    super.onAuthenticationSucceeded(result)
-                    isUnlocked = true
-                }
+        biometricAuth.authenticateForEncryption(
+            activity = activity,
+            onSuccess = { cipher ->
+                isUnlocked = true
+                error = null
+            },
+            onError = { err ->
+                error = err
             }
         )
-
-        val promptInfo = BiometricPrompt.PromptInfo.Builder()
-            .setTitle("Kasa Kilidini Aç")
-            .setSubtitle("Biyometrik verinizi kullanarak giriş yapın")
-            .setNegativeButtonText("PIN Kullan")
-            .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
-            .build()
-
-        biometricPrompt.authenticate(promptInfo)
     }
 
-    // Auto-start biometric if available
+    // Initialize Master Key if not exists
     LaunchedEffect(Unit) {
+        vaultCrypto.generateMasterKey(requireBiometric = true)
+        
         val biometricManager = BiometricManager.from(context)
         if (biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS) {
             authenticate()
@@ -69,14 +68,18 @@ fun VaultScreen(
     if (!isUnlocked) {
         VaultAuthScreen(
             pin = pin,
-            error = error,
+            error = error != null,
+            errorMessage = error,
             onPinChange = { 
                 pin = it
                 if (pin.length == 4) {
-                    if (pin == "1234") { // Mock PIN
+                    // PIN based derivation
+                    val result = vaultCrypto.deriveKeyFromPassword(pin.toCharArray())
+                    if (result.success) {
                         isUnlocked = true
+                        error = null
                     } else {
-                        error = true
+                        error = "Hatalı PIN"
                         pin = ""
                     }
                 }
@@ -94,6 +97,7 @@ fun VaultScreen(
 fun VaultAuthScreen(
     pin: String,
     error: Boolean,
+    errorMessage: String? = null,
     onPinChange: (String) -> Unit,
     onBiometricClick: () -> Unit,
     onBack: () -> Unit
@@ -140,7 +144,7 @@ fun VaultAuthScreen(
 
         if (error) {
             Spacer(Modifier.height(16.dp))
-            Text("Yanlış PIN, tekrar deneyin", color = MaterialTheme.colorScheme.error)
+            Text(errorMessage ?: "Hata oluştu", color = MaterialTheme.colorScheme.error)
         }
 
         Spacer(Modifier.height(48.dp))
