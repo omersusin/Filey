@@ -1,9 +1,18 @@
 package filey.app.feature.search.semantic.presentation
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import filey.app.core.di.AppContainer
+import filey.app.feature.search.semantic.data.indexer.EmbeddingGenerator
+import filey.app.feature.search.semantic.data.vectordb.ObjectBoxVectorStore
+import filey.app.feature.search.semantic.domain.usecase.QueryPreprocessor
 import filey.app.feature.search.semantic.domain.usecase.SemanticSearchUseCase
 import filey.app.feature.search.semantic.domain.model.SemanticResult
+import io.objectbox.BoxStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -42,6 +51,25 @@ class SearchViewModel(
                         error = e.message ?: "Arama sırasında bir hata oluştu",
                         isLoading = false
                     )
+                }
+            }
+        }
+    }
+
+    companion object {
+        fun createFactory(context: Context): ViewModelProvider.Factory {
+            return viewModelFactory {
+                initializer {
+                    val embeddingGenerator = EmbeddingGenerator(context)
+                    val boxStore = AppContainer.Instance.boxStore as? BoxStore
+                        ?: throw IllegalStateException("ObjectBox henüz başlatılmadı")
+                    val vectorStore = ObjectBoxVectorStore(boxStore)
+                    val useCase = SemanticSearchUseCase(
+                        embeddingGenerator,
+                        vectorStore,
+                        QueryPreprocessor()
+                    )
+                    SearchViewModel(useCase)
                 }
             }
         }

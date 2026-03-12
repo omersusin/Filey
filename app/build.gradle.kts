@@ -61,6 +61,7 @@ dependencies {
     implementation(project(":feature:vault"))
     implementation(project(":feature:viewer"))
     implementation(project(":feature:search-semantic"))
+    implementation(project(":feature:smart-tags"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime)
