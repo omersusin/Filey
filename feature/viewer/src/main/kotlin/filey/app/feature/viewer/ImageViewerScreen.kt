@@ -20,6 +20,9 @@ import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import filey.app.core.model.FileUtils
+import filey.app.feature.smart.tags.di.SmartTagContainer
+import filey.app.feature.smart.tags.presentation.SmartTagViewModel
+import filey.app.feature.smart.tags.presentation.TagChipGroup
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -28,10 +31,22 @@ fun ImageViewerScreen(
     path: String,
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
     val file = remember { File(path) }
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
     var showInfo by remember { mutableStateOf(false) }
+
+    // Smart Tags
+    val tagViewModel = remember {
+        val container = SmartTagContainer.getInstance(context)
+        SmartTagViewModel(container.repository)
+    }
+    val tags by tagViewModel.tags.collectAsState()
+
+    LaunchedEffect(path) {
+        tagViewModel.loadTagsForFile(path)
+    }
 
     Scaffold(
         topBar = {
@@ -106,6 +121,19 @@ fun ImageViewerScreen(
                             "Tarih: ${FileUtils.formatDate(file.lastModified())}",
                             color = Color.White
                         )
+
+                        if (tags.isNotEmpty()) {
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "Akıllı Etiketler:", 
+                                color = Color.White.copy(alpha = 0.7f), 
+                                style = MaterialTheme.typography.labelSmall
+                            )
+                            TagChipGroup(
+                                tags = tags,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                        }
                     }
                 }
             }
