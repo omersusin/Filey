@@ -34,8 +34,7 @@ class FileRouter(
             FileType.DIRECTORY,
             FileType.PDF,
             FileType.APK,
-            FileType.OTHER,
-            FileType.UNKNOWN       -> openWithSystemChooser(file.path)
+            FileType.OTHER -> openWithSystemChooser(file.path)
         }
     }
 

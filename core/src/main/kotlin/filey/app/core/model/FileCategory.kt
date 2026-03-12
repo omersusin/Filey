@@ -15,6 +15,6 @@ enum class FileCategory(
     DOCUMENTS("Belgeler", Icons.Outlined.Description, setOf(FileType.TEXT, FileType.PDF)),
     APKS("Uygulamalar", Icons.Outlined.Android, setOf(FileType.APK)),
     ARCHIVES("Arşivler", Icons.Outlined.FolderZip, setOf(FileType.ARCHIVE)),
-    OTHER("Diğer", Icons.Outlined.InsertDriveFile, emptySet()),
+    OTHER("Diğer", Icons.Outlined.InsertDriveFile, setOf(FileType.OTHER)),
     ALL("Tümü", Icons.Outlined.Folder, emptySet())
 }

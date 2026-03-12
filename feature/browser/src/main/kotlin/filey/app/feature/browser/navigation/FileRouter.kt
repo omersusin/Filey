@@ -20,7 +20,7 @@ class FileRouter(
             FileType.TEXT               -> navController.navigate(Routes.editor(filePath))
             FileType.VIDEO, FileType.AUDIO -> navController.navigate(Routes.player(filePath))
             FileType.ARCHIVE            -> navController.navigate(Routes.archive(filePath))
-            FileType.UNKNOWN            -> openWithSystemChooser(filePath)
+            FileType.OTHER, FileType.DIRECTORY, FileType.PDF, FileType.APK -> openWithSystemChooser(filePath)
         }
     }
 

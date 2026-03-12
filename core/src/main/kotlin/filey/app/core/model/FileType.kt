@@ -1,7 +1,7 @@
 package filey.app.core.model
 
 enum class FileType {
-    IMAGE, VIDEO, AUDIO, TEXT, ARCHIVE, UNKNOWN;
+    IMAGE, VIDEO, AUDIO, TEXT, ARCHIVE, PDF, APK, DIRECTORY, OTHER;
 
     companion object {
         private val IMAGE_EXT   = setOf("jpg","jpeg","png","gif","bmp","webp","svg","heic","heif")
@@ -19,7 +19,9 @@ enum class FileType {
                 ext in AUDIO_EXT   -> AUDIO
                 ext in TEXT_EXT    -> TEXT
                 ext in ARCHIVE_EXT -> ARCHIVE
-                else               -> UNKNOWN
+                ext == "pdf"       -> PDF
+                ext == "apk"       -> APK
+                else               -> OTHER
             }
         }
     }
